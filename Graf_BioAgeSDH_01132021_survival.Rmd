@@ -1,0 +1,874 @@
+---
+title: "Graf_BioAgeSDH_01132021_survival"
+author: "Gloria Huei-Jong Graf"
+date: "1/13/2022"
+output: html_document
+---
+
+This document contains survival analyses for Graf et al. 2021 as of 05/21/2021.
+
+*Data sources*
+
+* Data on birth year, age, racial identification, sex, region, survey weights, and variables to construct all outcomes of interest were obtained from the RAND 2018 HRS longitudinal file. Age is defined using the date of the end interview for 2016 participants, and by subtracting birth year from 2016 for non-2016 respondents. Variables for education and smoking are also extracted for descriptive statistics.
+
+* Survey weights, strata, and clustering variables are taken from the RAND 2018 tracker file
+
+* Data on blood-chemistry PhenoAge, Klemera-Doubal Biological Age, and Homeostatic Dysregulation were constructed using the BioAge R package.
+
+* Data on DNA methylation measures of biological aging were obtained from estimates created by Crimmins et al. and made available through the HRS. 
+
+
+*Variable construction*
+
+* Biological-age advancement values are calculated by taking the difference between measured and predicted biological age (as measured and biological age as predicted by (predicted biological age created by regressing biological age on chronological age)
+
+* Mortality data were obtained from HRS based on follow-up through 2019.
+
+*Sample restrictions*
+
+* After all above measures were constructed, we restricted analyses to only participants ages 50-90
+
+* Analysis of blood-chemistry measures was restricted to participants who had measures of biological aging available for all three measures (blood-chemistry PhenoAge, Klemera-Doubal Biological Age, Homeostatic Dysregulation)
+
+* Analysis of DNA methylation measures was further restricted to participants who had measures of biological aging available for all DNA methylation measures of biological aging.
+
+* Race-stratified analyses include participants who self-identified as Black or White in the HRS. 
+
+(*NOTE: This version of the documents applies updated measures of biological-age advancement for blood-chemistry measures, using regression residuals rather than difference scores. Survey weights are applied to full sample analyses of mediator-outcome interactions, as well as biological-age advancement distribution plots. See link for documentation: https://athenaeum.libs.uga.edu/bitstream/handle/10724/33254/HRS_Complex_Sample_Specifications.pdf?sequence=1&isAllowed=y*
+
+### Contents
+
+1) Mediator-outcome relationship: Effect-sizes for association between biological-age advancement and mortality characteristics (Cox PH models). 
+
+2) Exposure-outcome relationship: Effect-sizes for association of Black vs. White race with mortality, before and after covariate adjsutment for biological-age advancement.
+
+3) Exposure-mediator interactions: Tests of Black-White differences in observed associations between biological-age advancement and mortality (interaction term and RERIs)
+
+4) Mediation analysis: Testing biological-age advancement as a mediator of Black-White differences in 3-year survival, with and without E-M interactions.
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(haven)
+library(foreign)
+library("survival")
+library("survminer")
+library(ggfortify)
+library(GGally)
+library(CMAverse)
+library(survey)
+library(epiR)
+library(patchwork)
+```
+
+## Mediator-outcome relationship: Effect-sizes for association between biological-age advancement and mortality characteristics (Cox PH models). 
+
+* Time to event variable: T
+* Outcome variable: dead
+* Predictors: biological aging variables
+* Control variables: age (all models), gender (all models), census division (stratified models)
+
+#### Full sample
+```{r}
+hrs_design_vbs_full = 
+    svydesign(
+        id = ~ SECU ,
+        strata = ~ STRATUM ,
+        weights = ~ PVBSWGTR, 
+        nest = TRUE,
+        data = subset(BA_subsample, !is.na(pvbswgtr))
+    )
+
+hrs_design_DNAm_full = 
+    svydesign(
+        id = ~ SECU ,
+        strata = ~ STRATUM ,
+        weights = ~ VBSI16WGTRA, 
+        nest = TRUE,
+        data = subset(DNAm_subsample, !is.na(vbsi16wgtra))
+    )
+
+#Output- BC measures
+paa_coxph_model = 
+  svycoxph(
+        formula = Surv(T1, dead) ~ cbage + ragender + paa_sd, 
+        hrs_design_vbs_full)
+
+  paa_coxph_model_estimate =
+    paa_coxph_model %>%
+    broom::tidy(exp = T, conf.int = T) %>%
+    filter(term == "paa_sd") %>%
+    select(term, estimate, conf.low, conf.high)
+
+  paa_coxph_model_nobs =
+    paa_coxph_model$n
+  
+  paa_coxph_model_output =
+    cbind(paa_coxph_model_estimate, paa_coxph_model_nobs) %>%
+    rename(nobs = paa_coxph_model_nobs)
+  
+kdma_coxph_model = 
+  svycoxph(
+        formula = Surv(T1, dead) ~ cbage + ragender + kdma_sd, 
+        hrs_design_vbs_full)
+
+  kdma_coxph_model_estimate =
+    kdma_coxph_model %>%
+    broom::tidy(exp = T, conf.int = T) %>%
+    filter(term == "kdma_sd") %>%
+    select(term, estimate, conf.low, conf.high)
+
+  kdma_coxph_model_nobs =
+    kdma_coxph_model$n
+  
+  kdma_coxph_model_output =
+    cbind(kdma_coxph_model_estimate, kdma_coxph_model_nobs) %>%
+    rename(nobs = kdma_coxph_model_nobs)
+  
+hdlog_coxph_model = 
+  svycoxph(
+        formula = Surv(T1, dead) ~ cbage + ragender + hdlog_sd, 
+        hrs_design_vbs_full)
+
+  hdlog_coxph_model_estimate =
+    hdlog_coxph_model %>%
+    broom::tidy(exp = T, conf.int = T) %>%
+    filter(term == "hdlog_sd") %>%
+    select(term, estimate, conf.low, conf.high)
+
+  hdlog_coxph_model_nobs =
+    hdlog_coxph_model$n
+  
+  hdlog_coxph_model_output =
+    cbind(hdlog_coxph_model_estimate, hdlog_coxph_model_nobs) %>%
+    rename(nobs = hdlog_coxph_model_nobs)
+
+#DNAm measures
+hannum_coxph_model = 
+  svycoxph(
+        formula = Surv(T1, dead) ~ cbage + ragender + hannumadv_sd, 
+        hrs_design_DNAm_full)
+
+  hannum_coxph_model_estimate =
+    hannum_coxph_model %>%
+    broom::tidy(exp = T, conf.int = T) %>%
+    filter(term == "hannumadv_sd") %>%
+    select(term, estimate, conf.low, conf.high)
+
+  hannum_coxph_model_nobs =
+    hannum_coxph_model$n
+  
+  hannum_coxph_model_output =
+    cbind(hannum_coxph_model_estimate, hannum_coxph_model_nobs) %>%
+    rename(nobs = hannum_coxph_model_nobs)
+
+horvath_coxph_model = 
+  svycoxph(
+        formula = Surv(T1, dead) ~ cbage + ragender + horvathadv_sd, 
+        hrs_design_DNAm_full)
+
+  horvath_coxph_model_estimate =
+    horvath_coxph_model %>%
+    broom::tidy(exp = T, conf.int = T) %>%
+    filter(term == "horvathadv_sd") %>%
+    select(term, estimate, conf.low, conf.high)
+
+  horvath_coxph_model_nobs =
+    horvath_coxph_model$n
+  
+  horvath_coxph_model_output =
+    cbind(horvath_coxph_model_estimate, horvath_coxph_model_nobs) %>%
+    rename(nobs = horvath_coxph_model_nobs)
+
+levinednam_coxph_model = 
+  svycoxph(
+        formula = Surv(T1, dead) ~ cbage + ragender + levinednamadv_sd, 
+        hrs_design_DNAm_full)
+
+  levinednam_coxph_model_estimate =
+    levinednam_coxph_model %>%
+    broom::tidy(exp = T, conf.int = T) %>%
+    filter(term == "levinednamadv_sd") %>%
+    select(term, estimate, conf.low, conf.high)
+
+  levinednam_coxph_model_nobs =
+    levinednam_coxph_model$n
+  
+  levinednam_coxph_model_output =
+    cbind(levinednam_coxph_model_estimate, levinednam_coxph_model_nobs) %>%
+    rename(nobs = levinednam_coxph_model_nobs)
+  
+grimage_coxph_model = 
+  svycoxph(
+        formula = Surv(T1, dead) ~ cbage + ragender + grimageadv_sd, 
+        hrs_design_DNAm_full)
+
+  grimage_coxph_model_estimate =
+    grimage_coxph_model %>%
+    broom::tidy(exp = T, conf.int = T) %>%
+    filter(term == "grimageadv_sd") %>%
+    select(term, estimate, conf.low, conf.high)
+
+  grimage_coxph_model_nobs =
+    grimage_coxph_model$n
+  
+  grimage_coxph_model_output =
+    cbind(grimage_coxph_model_estimate, grimage_coxph_model_nobs) %>%
+    rename(nobs = grimage_coxph_model_nobs)
+
+poa_coxph_model = 
+  svycoxph(
+        formula = Surv(T1, dead) ~ cbage + ragender + poa_sd, 
+        hrs_design_DNAm_full)
+
+  poa_coxph_model_estimate =
+    poa_coxph_model %>%
+    broom::tidy(exp = T, conf.int = T) %>%
+    filter(term == "poa_sd") %>%
+    select(term, estimate, conf.low, conf.high)
+
+  poa_coxph_model_nobs =
+    poa_coxph_model$n
+  
+  poa_coxph_model_output =
+    cbind(poa_coxph_model_estimate, poa_coxph_model_nobs) %>%
+    rename(nobs = poa_coxph_model_nobs)
+
+#Full output
+coxph_fullmodel_output =
+  do.call("rbind", 
+    list(paa_coxph_model_output,
+        kdma_coxph_model_output,
+        hdlog_coxph_model_output,
+        horvath_coxph_model_output,
+        hannum_coxph_model_output,
+        levinednam_coxph_model_output,
+        grimage_coxph_model_output,
+        poa_coxph_model_output)) %>%
+  mutate(samplename = "full")
+  
+```
+
+#### Race-stratified analysis
+* Note warning for region13 variable: "Warning message: In fitter(X, Y, istrat, offset, init, control, weights = weights, : Loglik converged before variable  5 ; coefficient may be infinite." This occurs because there are no participants in the "5.other" region in our sample. From the package creator (https://stat.ethz.ch/pipermail/r-help/2008-September/174201.html): "Usually you can ignore the message, it is mostly for your information.  The key things to note are a. When one of the coefficients goes to infinity in a Cox model, the Wald test of significance beta/se(beta) breaks down, and is no longer reliable. The LR test however is still valid.  Hence routines like stepAIC are ok. So are predicted values, residuals, etc etc.  In fact it is pretty much only the Wald test that needs to be ignored: it is based on a Taylor series that simply doesn't work that far from zero.  Oops -- confidence intervals based on the se are also useless."
+
+```{r}
+################  Writing function ################ 
+
+coxph_strat =
+  
+  function(sample, BAmeasure) {
+    
+  model = 
+    coxph(formula = Surv(T1, dead) ~ cbage + ragender + region13 + pull(sample, BAmeasure), data = sample, robust = T)
+    
+  estimate =
+    model %>%
+    broom::tidy(exponentiate = T, conf.int = T) %>%
+    filter(term == "pull(sample, BAmeasure)") %>%
+    select(term, estimate, conf.low, conf.high, p.value)
+    
+  nobs = 
+    (model$n)
+  
+  cbind(estimate, nobs)
+    
+  }
+
+
+################ Input lists + labels ################ 
+analysissample_list_coxPH =
+  list(BA_subsample_white = BA_subsample_white, 
+       BA_subsample_black = BA_subsample_black,
+       DNAm_subsample_white = DNAm_subsample_white,
+       DNAm_subsample_black = DNAm_subsample_black)
+
+BAmeasure_list_coxPH = 
+  list(paa_sd = "paa_sd", kdma_sd = "kdma_sd", hdlog_sd = "hdlog_sd", horvathadv_sd = "horvathadv_sd", hannumadv_sd = "hannumadv_sd", levinednamadv_sd = "levinednamadv_sd", grimageadv_sd = "grimageadv_sd", poa_sd = "poa_sd")
+
+dataset_coxPH_strat =
+  list(x = analysissample_list_coxPH, y = BAmeasure_list_coxPH)
+dataset_coxPH_combo_strat =
+  cross_df(dataset_coxPH_strat) %>%
+  rename(sample = x, measure = y)
+
+dataset_coxPH_combo_strat_labels =
+  dataset_coxPH_combo_strat %>%
+  mutate(samplename = rep(c("BA_subsample_white", "BA_subsample_black",
+                        "DNAm_subsample_white", "DNAm_subsample_black"), times = 8)) %>%
+  dplyr::select(-sample)
+
+################ Output ################ 
+output_coxph_strat_raw = 
+  map2_dfr(dataset_coxPH_combo_strat$sample, dataset_coxPH_combo_strat$measure, coxph_strat)
+
+output_coxph_strat =
+  cbind(dataset_coxPH_combo_strat_labels, output_coxph_strat_raw) %>%
+  select(-term, -p.value) %>%
+  filter(
+    ((samplename %in% c("BA_subsample_white", "BA_subsample_black")) & (measure %in% c("paa_sd", "kdma_sd", "hdlog_sd"))) | 
+    ((samplename %in% c("DNAm_subsample_white", "DNAm_subsample_black")) & (measure %in% c("horvathadv_sd", "hannumadv_sd", "levinednamadv_sd", "grimageadv_sd", "poa_sd")))
+  ) %>%
+  rename(term = measure)
+```
+
+#### Analysis of chronological age
+
+```{r}
+################  Writing function ################ 
+coxph_fullsample_CA =
+    svycoxph(formula = Surv(T1, dead) ~ scale(age13) + ragender, design = hrs_design_vbs_full)
+    
+  estimate_fullsampleCA =
+    coxph_fullsample_CA %>%
+    broom::tidy(exponentiate = T, conf.int = T) %>%
+    filter(term == "scale(age13)") %>%
+    select(term, estimate, conf.low, conf.high)
+    
+  nobs_fullsampleCA = 
+    (coxph_fullsample_CA$n)
+  
+  cbind(estimate_fullsampleCA, nobs_fullsampleCA) %>%
+  mutate(conf.low = format(round(conf.low,2), nsmall = 2),
+         conf.high = format(round(conf.high,2), nsmall = 2)) %>%
+  mutate(CI = paste("(",conf.low,",",conf.high,")", sep = "")) %>%
+    select(term, estimate, CI, nobs_fullsampleCA) %>%
+    knitr::kable()
+  
+coxph_fullsample_CA_white =
+    coxph(formula = Surv(T1, dead) ~ scale(age13) + ragender + region13, data = BA_subsample_white)
+    
+  estimate_fullsampleCA_white =
+    coxph_fullsample_CA_white %>%
+    broom::tidy(exponentiate = T, conf.int = T) %>%
+    filter(term == "scale(age13)") %>%
+    select(term, estimate, conf.low, conf.high, p.value)
+    
+  nobs_fullsampleCA_white = 
+    (coxph_fullsample_CA_white$n)
+  
+  cbind(estimate_fullsampleCA_white, nobs_fullsampleCA_white) %>%
+    mutate(conf.low = format(round(conf.low,2), nsmall = 2),
+           conf.high = format(round(conf.high,2), nsmall = 2)) %>%
+    mutate(CI = paste("(",conf.low,",",conf.high,")", sep = "")) %>%
+      select(term, estimate, CI, nobs_fullsampleCA_white) %>%
+      knitr::kable()
+ 
+coxph_fullsample_CA_black =
+    coxph(formula = Surv(T1, dead) ~ scale(age13) + ragender + region13, data = BA_subsample_black)
+    
+  estimate_fullsampleCA_black =
+    coxph_fullsample_CA_black %>%
+    broom::tidy(exponentiate = T, conf.int = T) %>%
+    filter(term == "scale(age13)") %>%
+    select(term, estimate, conf.low, conf.high, p.value)
+    
+  nobs_fullsampleCA_black = 
+    (coxph_fullsample_CA_black$n)
+  
+  cbind(estimate_fullsampleCA_black, nobs_fullsampleCA_black) %>%
+    mutate(conf.low = format(round(conf.low,2), nsmall = 2),
+           conf.high = format(round(conf.high,2), nsmall = 2)) %>%
+    mutate(CI = paste("(",conf.low,",",conf.high,")", sep = "")) %>%
+      select(term, estimate, CI, nobs_fullsampleCA_black) %>%
+      knitr::kable()
+```
+
+
+
+## 2) Exposure-outcome relationship: Effect-sizes for association of Black vs. White race with mortality incidence, before and after covariate adjsutment for biological-age advancement.
+
+```{r}
+################ Defining samples ################ 
+
+BA_subsample_bw =
+  BA_subsample %>%
+  filter(raracem == "1.white/caucasian" | raracem == "2.black/african american") %>%
+  droplevels()
+
+DNAm_subsample_bw =
+  DNAm_subsample %>%
+  filter(raracem == "1.white/caucasian" | raracem == "2.black/african american")%>%
+  droplevels()
+```
+
+Unadjusted disparity
+```{r}
+################  Writing function ################ 
+racialdisparity_supptable3_coxph_f = 
+  function(sample){
+    
+  model =
+      coxph(Surv(T1, dead) ~ raracem + age + sex + region13, data = sample)
+
+  estimate =
+    model %>%
+    broom::tidy(exp = T, conf.int = T) %>%
+    filter(term == "raracem2.black/african american") %>%
+    mutate(conf.low = format(round(conf.low,2), nsmall = 2),
+           conf.high = format(round(conf.high,2), nsmall = 2)) %>%
+    mutate(CI = paste("(",conf.low,",",conf.high,")", sep = "")) %>%
+    dplyr::select(estimate, CI)
+    
+  nobs = 
+    model$n
+  
+  cbind(estimate, nobs)
+    
+  }
+
+################ Input lists + labels ################ 
+sample_list_supptable3 = 
+  list(BA_subsample_bw = BA_subsample_bw, 
+       DNAm_subsample_bw = DNAm_subsample_bw)
+
+################ Output ################ 
+
+outcome_unadjusted_supptable3 =
+  map_dfr(sample_list_supptable3, racialdisparity_supptable3_coxph_f, .id = "samplename")
+
+outcome_unadjusted_supptable3 %>%
+  knitr::kable()
+```
+
+Adjusted disparity
+```{r}
+################  Writing function ################ 
+
+racialdisparity_supptable3_adjusted_coxph_f = 
+  function(BAmeasure, sample){
+    
+    model =
+      coxph(Surv(T1, dead) ~ raracem + age + sex + region13 + pull(sample, BAmeasure), data = sample)
+    
+  estimate =
+    model %>%
+    broom::tidy(exp = T, conf.int = T) %>%
+    filter(term == "raracem2.black/african american") %>%
+    mutate(conf.low = format(round(conf.low,2), nsmall = 2),
+           conf.high = format(round(conf.high,2), nsmall = 2)) %>%
+    mutate(CI = paste("(",conf.low,",",conf.high,")", sep = "")) %>%
+    dplyr::select(estimate, CI)
+    
+  nobs = 
+    model$n
+  
+  cbind(estimate, nobs)
+    
+  }
+
+    
+################ Input lists + labels ################ 
+sample_list_supptable3 = 
+  list(BA_subsample_bw = BA_subsample_bw, 
+       DNAm_subsample_bw = DNAm_subsample_bw)
+
+BAmeasure_list_coxph = 
+  list(paa_sd = "paa_sd", kdma_sd = "kdma_sd", hdlog_sd = "hdlog_sd", levinednamadv_sd = "levinednamadv_sd", grimageadv_sd = "grimageadv_sd", poa_sd = "poa_sd")
+
+dataset_supptable3_coxph =
+  list(x = BAmeasure_list_coxph, y = sample_list_supptable3)
+dataset_supptable3_coxph_combo =
+  cross_df(dataset_supptable3_coxph) %>%
+  rename(BAmeasure = x, sample = y)
+
+dataset_supptable3_coxph_combo_labels =
+  dataset_supptable3_coxph_combo %>%
+  mutate(samplename = rep(c("BA_subsample", "DNAm_subsample"), each = 6)) %>% 
+  select(-sample)
+
+################ Output ################ 
+output_adjusted_supptable3_coxph =
+  pmap_dfr(list(dataset_supptable3_coxph_combo$BAmeasure, dataset_supptable3_coxph_combo$sample), racialdisparity_supptable3_adjusted_coxph_f)
+
+output_adjusted_supptable3_coxph =
+  cbind(dataset_supptable3_coxph_combo_labels, output_adjusted_supptable3_coxph) %>%
+  pivot_wider(names_from = BAmeasure, values_from = c("estimate", "CI", "nobs")) %>%
+  dplyr::select(samplename,
+                estimate_paa_sd, CI_paa_sd, nobs_paa_sd, 
+                estimate_kdma_sd, CI_kdma_sd, nobs_kdma_sd, 
+                estimate_hdlog_sd, CI_hdlog_sd, nobs_hdlog_sd, 
+                estimate_levinednamadv_sd, CI_levinednamadv_sd, nobs_levinednamadv_sd, 
+                estimate_grimageadv_sd, CI_grimageadv_sd, nobs_grimageadv_sd, 
+                estimate_poa_sd, CI_poa_sd, nobs_poa_sd
+                )
+  
+output_adjusted_supptable3_coxph %>%
+  knitr::kable()
+
+```
+
+
+## 3) Exposure-mediator interactions: Tests of Black-White differences in observed associations between biological-age advancement and mortality (interaction term and RERIs)
+
+Interaction term
+```{r}
+################  Writing function ################ 
+
+supptable5_interaction_coxph = function(sample, BAmeasure) {
+  
+   model = 
+    coxph(formula = Surv(T1, dead) ~ cbage + ragender + region13 + pull(sample, BAmeasure) + raracem + pull(sample, BAmeasure):raracem, data = sample, robust = T)
+    
+  estimate =
+    model %>%
+    broom::tidy(conf.int = T) %>%
+    filter(term == "pull(sample, BAmeasure):raracem2.black/african american") %>%
+    select(term, estimate, conf.low, conf.high, p.value)
+    
+  nobs = 
+    (model$n)
+  
+  cbind(estimate, nobs)
+  
+}
+
+################ Input lists + labels ################ 
+
+sample_list_supptable5_coxph =
+  list(BA_subsample_bw = BA_subsample_bw, 
+       DNAm_subsample_bw = DNAm_subsample_bw)
+
+BAmeasure_list_supptable5_coxph = 
+  BAmeasure_list_coxph
+
+dataset_supptable5_coxph =
+  list(x = sample_list_supptable5_coxph, y = BAmeasure_list_supptable5_coxph)
+dataset_supptable5_coxph_combo =
+  cross_df(dataset_supptable5_coxph) %>%
+  rename(sample = x, measure = y)
+
+dataset_supptable5_combo_coxph_labels =
+  dataset_supptable5_coxph_combo %>%
+  mutate(samplename = rep(c("BA_subsample", "DNAm_subsample"), times = 6)) %>%
+  dplyr::select(samplename, measure)
+
+################ Output ################ 
+
+output_int_supptable5_coxph = 
+  pmap_dfr(list(dataset_supptable5_coxph_combo$sample, dataset_supptable5_coxph_combo$measure), supptable5_interaction_coxph)
+
+output_int_supptable5_coxph =
+  cbind(dataset_supptable5_combo_coxph_labels, output_int_supptable5_coxph) %>%
+  dplyr::select(samplename, measure, estimate, conf.low, conf.high, p.value, nobs) %>%
+  filter(
+    (samplename == "BA_subsample" & (measure %in% c("paa_sd", "kdma_sd", "hdlog_sd"))) | 
+    (samplename == "DNAm_subsample" & (measure %in% c("levindnamadv_sd", "grimageadv_sd", "poa_sd")))
+  ) %>%
+  mutate(
+    conf.low = format(round(conf.low, 2), nsmall = 2),
+    conf.high = format(round(conf.high, 2), nsmall = 2)
+  ) %>%
+  mutate(CI = paste("(",conf.low,",",conf.high,")", sep = "")) %>%
+  select(samplename, measure, estimate, CI, p.value, nobs) %>%
+  rename(est_int = estimate,
+         ci_int = CI,
+         p_int = p.value)
+```
+
+RERIs
+```{r}
+################  Writing function ################ 
+supptable5_reri_coxph = function(sample, BAmeasure) {
+  
+   model = 
+    coxph(formula = Surv(T1, dead) ~ cbage + ragender + region13 + pull(sample, BAmeasure) + raracem + pull(sample, BAmeasure):raracem, data = sample, robust = T)
+  
+  estimate = 
+    epi.interaction(model, param = c("product"), coef = c(6, 7, 8),
+    type = "RERI", conf.level = 0.95)
+  
+  nobs = 
+    model$n
+  
+  cbind(estimate, nobs)
+  
+}
+  
+
+## ################ Input lists + labels ################ 
+
+### Same as above: analysis [dataset_supptable5_combo], labels [dataset_supptable5_combo_labels]
+
+################ Output ################ 
+
+output_reri_supptable5_coxph = 
+  pmap_dfr(list(dataset_supptable5_coxph_combo$sample, dataset_supptable5_coxph_combo$measure), supptable5_reri_coxph)
+
+output_reri_supptable5_coxph =
+  cbind(dataset_supptable5_combo_coxph_labels, output_reri_supptable5_coxph) %>%
+  dplyr::select(samplename, measure, est, lower, upper, nobs) %>%
+  filter(
+    (samplename == "BA_subsample" & (measure %in% c("paa_sd", "kdma_sd", "hdlog_sd"))) | 
+    (samplename == "DNAm_subsample" & (measure %in% c("levinednamadv_sd", "grimageadv_sd", "poa_sd")))
+  ) %>%
+  mutate(
+    lower = format(round(lower, 2), nsmall = 2),
+    upper = format(round(upper, 2), nsmall = 2)
+  ) %>%
+  mutate(CI = paste("(",lower,",",upper,")", sep = "")) %>%
+  select(samplename, measure, est, CI, nobs) %>%
+  rename(est_reri = est,
+         ci_reri = CI)
+```
+
+Analysis of chronological Age
+```{r}
+
+  model = 
+    coxph(formula = Surv(T1, dead) ~ ragender + region13 + scale(age13) + raracem + scale(age13):raracem, data = BA_subsample_bw, robust = T)
+    
+  estimate =
+    model %>%
+    broom::tidy(conf.int = T) %>%
+    filter(term == "scale(age13):raracem2.black/african american") %>%
+    select(term, estimate, conf.low, conf.high, p.value)
+    
+  nobs = 
+    (model$n)
+  
+  cbind(estimate, nobs)
+  
+  epi.interaction(model, param = c("product"), coef = c(5, 6, 7),
+  type = "RERI", conf.level = 0.95)
+  
+```
+
+## 4) Mediation analysis: Testing biological-age advancement as a mediator of Black-White differences in 3-year survival, with and without E-M interactions.
+
+No interaction
+```{r}
+################  Writing function ################ 
+coxph_mediation_noint = function(sample, BAmeasure) {
+  
+    step1 =
+      cmest(
+        data = sample,
+        model = "rb",
+        full = FALSE,
+        inference = "bootstrap",
+        outcome = "T1",
+        event = "dead",
+        exposure = "black",
+        mediator = BAmeasure,
+        EMint = FALSE,
+        basec = c("age", "ragender", "region13"),
+        mreg = list("linear"),
+        yreg = "coxph",
+        mval = list(0),
+        astar = 0,
+        a = 1,
+        basecval = NULL,
+        nboot = 200,
+        multimp = FALSE
+      )
+    
+    estimate =
+      step1$effect.pe %>%
+      as.data.frame() %>%
+      janitor::clean_names() %>%
+      rownames_to_column(var = "measure") %>%
+      rename(estimate = x) %>%
+      mutate(estimate = log(estimate))
+    
+    nobs =
+      c("nobs", nobs(step1$reg.output$yreg))
+    
+    estimate = 
+      rbind(estimate, nobs)
+    
+    lowerCI =
+      step1$effect.ci.low %>%
+      as.data.frame() %>%
+      janitor::clean_names() %>%
+      rownames_to_column(var = "measure") %>%
+      rename(lowerCI = x) %>%
+      mutate(lowerCI = log(lowerCI))
+
+    lowerCI = 
+      rbind(lowerCI, nobs)
+    
+    upperCI =
+      step1$effect.ci.high %>%
+      as.data.frame() %>%
+      janitor::clean_names() %>%
+      rownames_to_column(var = "measure") %>%
+      rename(upperCI = x) %>%
+      mutate(upperCI = log(upperCI))
+    
+    upperCI = 
+      rbind(upperCI, nobs)  
+    
+    mediation_results =
+      left_join(estimate, lowerCI)
+    mediation_results =
+      left_join(mediation_results, upperCI)
+    
+    mediation_results
+
+}
+
+################ Input lists + labels ################ 
+sample_list_med_coxph =
+  list(BA_subsample_bw = BA_subsample_bw, 
+       DNAm_subsample_bw = DNAm_subsample_bw)
+
+BAmeasure_list_coxph_med = 
+  list(paa_sd = "paa_sd", kdma_sd = "kdma_sd", hdlog_sd = "hdlog_sd", levinednamadv_sd = "levinednamadv_sd", grimageadv_sd = "grimageadv_sd", poa_sd = "poa_sd")
+
+coxph_combo_list =
+  list(x = sample_list_med_coxph, y = BAmeasure_list_coxph_med)
+dataset_coxph_combo_list =
+  cross_df(coxph_combo_list) %>%
+  rename(sample = x, measure = y)
+
+dataset_coxph_combo_list_labels =
+  dataset_coxph_combo_list %>%
+  mutate(samplename = rep(c("BA_subsample", "DNAm_subsample"), times = 6)) %>%
+  dplyr::select(samplename, measure) %>%
+  rename(BAmeasure_name = measure) %>%
+  slice(rep(1:n(), each = 7))
+
+################ Output ################ 
+output_mediation_coxph_noint = 
+  map2_dfr(dataset_coxph_combo_list$sample, dataset_coxph_combo_list$measure, coxph_mediation_noint, .id = "BAmeasure")
+
+output_mediation_coxph_noint =
+  cbind(dataset_coxph_combo_list_labels, output_mediation_coxph_noint) %>%
+  dplyr::select(-BAmeasure) %>%
+  filter(
+    (samplename == "BA_subsample" & (BAmeasure_name %in% c("paa_sd", "kdma_sd", "hdlog_sd"))) | 
+    (samplename == "DNAm_subsample" & (BAmeasure_name %in% c("levinednamadv_sd", "grimageadv_sd", "poa_sd")))
+  ) %>%
+  mutate(
+    lowerCI = as.numeric(lowerCI),
+    upperCI = as.numeric(upperCI)
+  ) %>%
+  mutate(
+    lowerCI = format(round(lowerCI, 2), nsmall = 2),
+    upperCI = format(round(upperCI, 2), nsmall = 2)
+  ) %>%
+  mutate(CI = paste("(",lowerCI,",",upperCI,")", sep = "")) %>%
+  dplyr::select(-lowerCI, -upperCI)
+
+output_mediation_coxph_noint %>%
+  knitr::kable()
+```
+
+Exposure-mediator interactions (*Note warnings due to cendiv)
+```{r}
+################  Writing function ################ 
+
+coxph_mediation_int = function(sample, BAmeasure) {
+  
+    step1 =
+      cmest(
+        data = sample,
+        model = "rb",
+        full = FALSE,
+        inference = "bootstrap",
+        outcome = "T1",
+        event = "dead",
+        exposure = "black",
+        mediator = BAmeasure,
+        EMint = TRUE,
+        basec = c("age", "ragender", "region13"),
+        mreg = list("linear"),
+        yreg = "coxph",
+        mval = list(0),
+        astar = 0,
+        a = 1,
+        basecval = NULL,
+        nboot = 200,
+        multimp = FALSE
+      )
+    
+    estimate =
+      step1$effect.pe %>%
+      as.data.frame() %>%
+      janitor::clean_names() %>%
+      rownames_to_column(var = "measure") %>%
+      rename(estimate = x) %>%
+      mutate(estimate = log(estimate))
+    
+    nobs =
+      c("nobs", nobs(step1$reg.output$yreg))
+    
+    estimate = 
+      rbind(estimate, nobs)
+    
+    lowerCI =
+      step1$effect.ci.low %>%
+      as.data.frame() %>%
+      janitor::clean_names() %>%
+      rownames_to_column(var = "measure") %>%
+      rename(lowerCI = x) %>%
+      mutate(lowerCI = log(lowerCI))
+
+    lowerCI = 
+      rbind(lowerCI, nobs)
+    
+    upperCI =
+      step1$effect.ci.high %>%
+      as.data.frame() %>%
+      janitor::clean_names() %>%
+      rownames_to_column(var = "measure") %>%
+      rename(upperCI = x) %>%
+      mutate(upperCI = log(upperCI))
+    
+    upperCI = 
+      rbind(upperCI, nobs)  
+    
+    mediation_results =
+      left_join(estimate, lowerCI)
+    mediation_results =
+      left_join(mediation_results, upperCI)
+    
+    mediation_results
+
+}
+
+################ Input lists + labels ################ 
+
+coxph_combo_list_int =
+  list(x = sample_list_med_coxph, y = BAmeasure_list_coxph_med)
+dataset_coxph_combo_list_int =
+  cross_df(coxph_combo_list_int) %>%
+  rename(sample = x, measure = y)
+
+dataset_coxph_combo_list_int_labels =
+  dataset_coxph_combo_list_int %>%
+  mutate(samplename = rep(c("BA_subsample", "DNAm_subsample"), times = 6)) %>%
+  dplyr::select(samplename, measure) %>%
+  rename(BAmeasure_name = measure) %>%
+  slice(rep(1:n(), each = 7))
+
+################ Output ################ 
+
+output_mediation_coxph_int = 
+  map2_dfr(dataset_coxph_combo_list_int$sample, dataset_coxph_combo_list_int$measure, coxph_mediation_int, .id = "BAmeasure")
+
+output_mediation_coxph_int =
+  cbind(dataset_coxph_combo_list_int_labels, output_mediation_coxph_int) %>%
+  dplyr::select(-BAmeasure) %>%
+  filter(
+    (samplename == "BA_subsample" & (BAmeasure_name %in% c("paa_sd", "kdma_sd", "hdlog_sd"))) | 
+    (samplename == "DNAm_subsample" & (BAmeasure_name %in% c("levinednamadv_sd", "grimageadv_sd", "poa_sd")))
+  ) %>%
+  mutate(
+    lowerCI = as.numeric(lowerCI),
+    upperCI = as.numeric(upperCI)
+  ) %>%
+  mutate(
+    lowerCI = format(round(lowerCI, 2), nsmall = 2),
+    upperCI = format(round(upperCI, 2), nsmall = 2)
+  ) %>%
+  mutate(CI = paste("(",lowerCI,",",upperCI,")", sep = "")) %>%
+  dplyr::select(-lowerCI, -upperCI)
+
+output_mediation_coxph_int %>%
+  knitr::kable()
+
+```
+

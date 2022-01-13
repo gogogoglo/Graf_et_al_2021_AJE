@@ -1,0 +1,2282 @@
+---
+title: "Graf_BioAgeSDH_tables_01132021"
+author: "Gloria Huei-Jong Graf"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+This document provides code for all cross-sectional analyses performed in Graf et al. 2021 AJE as of 01/13/2021. 
+
+### Data sources, variable construction, and sample restrictions
+
+*Data sources*
+
+* Data on birth year, age, racial identification, sex, region, survey weights, and variables to construct all outcomes of interest were obtained from the RAND 2018 HRS longitudinal file. Age is defined using the date of the end interview for 2016 participants, and by subtracting birth year from 2016 for non-2016 respondents. Variables for education and smoking are also extracted for descriptive statistics.
+
+* Survey weights, strata, and clustering variables are taken from the RAND 2018 tracker file
+
+* Data on blood-chemistry PhenoAge, Klemera-Doubal Biological Age, and Homeostatic Dysregulation were constructed using the BioAge R package.
+
+* Data on DNA methylation measures of biological aging were obtained from estimates created by Crimmins et al. and made available through the HRS. 
+
+
+*Variable construction*
+
+* Biological-age advancement values are calculated by taking the difference between measured and predicted biological age (as measured and biological age as predicted by (predicted biological age created by regressing biological age on chronological age)
+
+* Functional impairment scores were constructed using the following performance measures: dominant hand grip strength, peak flow, walk speed, and balance. Those who had at least three of four measures were included in our analysis. *Peak Flow*: The breathing test measurements are taken three times. RwPUFF takes the maximum of all non-missing breathing test measurements
+for the Respondent. The breathing test is measured in liters per minute. *Grip Strength* Grip strength measurements are taken twice on each hand.  RwGRPL summarizes the Respondent’s left-handed grip strength measurements taken during the in-home physical measurements portion of the HRS. RwGRPR summarizes the Respondent’s right-handed grip strength measurements. RwGRPDOM lists the Respondent’s dominant hand. Grip strength was based on the highest grip strength measurement from their dominant hand. If respondent did not indicate a dominant hand, the maximum grip strength the higher value of RwGRPL and RwGRPR was taken. *Walk speed* RwTIMWLK summarizes the Respondent’s performance in the timed walk tests during the in-home physical measurements portion of the HRS. *Balance* The time the Respondent was able to hold the semi-tandem stand is recorded in RwBALSEMI in seconds, up to two decimal places. If the Respondent was unable to hold the semi-tandem stand for 10 seconds, they are asked to hold a side-by-side stand for 30 seconds. The time the Respondent was able to hold the side-by-side stand is recorded in RwBALSBS in seconds, up to two decimal places. If the Respondent does hold the semi-tandem stand for 10 seconds, they are not asked to hold the side-by-side stand and RwBALSBS is set to .T. If the Respondent was able to hold the semi-tandem stand for 10 seconds, they are asked to hold a full-tandem stand. Respondents under the age of 70 are asked to hold the full-tandem stand for one minute, while Respondents 70 and older are asked to hold the full-tandem stand for 30 seconds. RwBALFULT reports if the respondent held the full-tandem stand the maximum amount of time that they were asked to hold it for. If the Respondent was unable hold the semi-tandem stand for 10 seconds, they are not asked to hold a full-tandem stand and RwBALFUL is set to .T. 
+
+* 2016 ADLs are calculated by summing wave 13 variables for bathing, dressing, eating, walking, toileting, and getting in and out of bed (r13batha, r13dressa, r13eata, r13beda, r13walkra, r13toilta). 2018 ADLs are calculated by summing wave 14 variables for bathing, dressing, eating, walking, toileting, and getting in and out of bed (r14batha, r14dressa, r14eata, r14beda, r14walkra, r14toilta). Change in ADL score from 2016-2018 is calculated by subtracting the 2016 ADL score from the 2018 adl score.
+
+* 2016 chronic disease diagnoses are calculated by summing wave 13 variables for ever having been diagnosed with high BP, diabetes, cancer, chronic lung disease, heart problems, or stroke (r13hibpe, r13diabe, r13cancre, r13lunge, r13hearte, r13stroke). 2018 chronic disease diagnoses are calculated by summing wave 14 variables for ever having been diagnosed with high BP, diabetes, cancer, chronic lung disease, heart problems, or stroke (r14hibpe, r14diabe, r14cancre, r14lunge, r14hearte, r14stroke). Change in chronic disease diagnoses from 2016-2018 is calculated by subtracting the 2016 total count from the 2018 total count.
+
+* Self-rated health (delta_srh) is constructed by subtracting self-rated health in 2016 (R13SHLT) from self-rated health in 2018 (R14SHLT).
+
+
+*Sample restrictions*
+
+* After all above measures were constructed, we restricted analyses to only participants ages 50-90
+
+* Analysis of blood-chemistry measures was restricted to participants who had measures of biological aging available for all three measures (blood-chemistry PhenoAge, Klemera-Doubal Biological Age, Homeostatic Dysregulation)
+
+* Analysis of DNA methylation measures was further restricted to participants who had measures of biological aging available for all DNA methylation measures of biological aging.
+
+* Race-stratified analyses include participants who self-identified as Black or White in the HRS. 
+
+(*NOTE: This version of the documents applies updated measures of biological-age advancement for blood-chemistry measures, using regression residuals rather than difference scores. Survey weights are applied to full sample analyses of mediator-outcome interactions, as well as biological-age advancement distribution plots. See link for documentation: https://athenaeum.libs.uga.edu/bitstream/handle/10724/33254/HRS_Complex_Sample_Specifications.pdf?sequence=1&isAllowed=y*
+
+
+
+### Contents
+
+1) Mediator-outcome relationship: Effect-sizes for association between biological-age advancement and healthspan-related characteristics (full sample and race-stratified). Cross-sectional analyses presented first, followed by longitudinal analysis and mortality analysis.
+
+2) Exposure-outcome relationship: Effect-sizes for association of Black vs. White race with healthspan-related characteristics, before and after covariate adjustment for biological-age advancement. Cross-sectional analyses presented first, followed by longitudinal analysis and mortality analysis.
+
+3) Exposure-mediator interactions: Tests of Black-White differences in observed associated between biological-age advancement and healthspan-related characteristics (interaction term and RERIs). Cross-sectional analyses presented first, followed by longitudinal analysis and mortality analysis.
+
+4) Mediation analysis: Testing biological-age advancement as a mediator of Black-White differences in healthspan characteristics, with and without E-M interactions.
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(foreign)
+library(haven)
+library(survey)
+library(questionr)
+library(radiant.data)
+library(epiR)
+library(CMAverse)
+library(patchwork)
+library(BioAge)
+```
+
+## 1) Mediator-outcome relationship: Effect-sizes for association between biological-age advancement and healthspan-related characteristics (full sample and race-stratified). 
+
+#### Full sample
+
+Count outcomes
+
+```{r}
+################ Defining svydesigns ################ 
+hrs_design_vbs_full = 
+    svydesign(
+        id = ~ secu ,
+        strata = ~ stratum ,
+        weights = ~ pvbswgtr, 
+        nest = TRUE,
+        data = subset(BA_subsample, !is.na(pvbswgtr))
+    )
+
+hrs_design_DNAm_full = 
+    svydesign(
+        id = ~ secu ,
+        strata = ~ stratum ,
+        weights = ~ vbsi16wgtra, 
+        nest = TRUE,
+        data = subset(DNAm_subsample, !is.na(vbsi16wgtra))
+    )
+
+################  Writing function: Mediator-outcome relationship ################ 
+mediator_fn_supptable2 =
+  function(equation, design) {
+    
+  model = svyglm( 
+        formula = equation, 
+        family = poisson(link = "log"),
+        design 
+        ) 
+  
+  estimate =
+    model %>%
+    broom::tidy(exponentiate = TRUE, conf.int = TRUE) %>%
+    filter(term != "(Intercept)" & term != "center_age" & term != "sexMen") %>%
+    dplyr::select(term, estimate, conf.low, conf.high)
+  
+  nobs = 
+    nobs(model)
+  
+  cbind(estimate, nobs)
+    
+  }
+
+################ Input lists + labels ################ 
+
+outcome_list = list(fn_score = "fn_score", adl_cat = "adl_cat", dx_c_num = "dx_c_num")
+covariate_list = list("center_age + sex")
+exposure_list = 
+  list(paa_sd = "paa_sd", kdma_sd = "kdma_sd", hdlog_sd = "hdlog_sd", horvathadv_sd = "horvathadv_sd", hannumadv_sd = "hannumadv_sd", levinednamadv_sd = "levinednamadv_sd", grimageadv_sd = "grimageadv_sd", poa_sd = "poa_sd")
+svydesign_list = list(hrs_design_vbs_full = hrs_design_vbs_full, hrs_design_DNAm_full = hrs_design_DNAm_full)
+
+regression_eqns_list_supptable2 =
+  list(outcome = outcome_list, covariates = covariate_list, exposure = exposure_list)
+eqns_supptable2 =
+  cross_df(regression_eqns_list_supptable2) %>%
+  mutate(equation = paste(outcome, " ~ ", covariates, " + ", exposure, sep = ""))
+eqns_supptable2_list =
+  as.list(eqns_supptable2$equation)
+
+eqns_supptable2_labels =
+  eqns_supptable2 %>%
+  mutate(outcome_exposure = paste(outcome, exposure, sep = ", ")) %>%
+  select(outcome_exposure)
+  
+svydesign_list_labels_supptable2 =
+  tibble(
+    svydesign = c("hrs_design_vbs_full", 
+                  "hrs_design_DNAm_full")
+  )
+
+inputs_list_supptable2 =
+  list(eqns_supptable2_list = eqns_supptable2_list, svydesign_list = svydesign_list) %>%
+  cross_df()
+
+output_labels_supptable2 =
+  list(eqns_supptable2_labels = eqns_supptable2_labels$outcome_exposure, svydesign_list_labels_supptable2 = svydesign_list_labels_supptable2$svydesign) %>%
+  cross_df()
+
+################ Output ################ 
+output_supptable2_full_raw = 
+  pmap(list(inputs_list_supptable2$eqns_supptable2_list, inputs_list_supptable2$svydesign_list), mediator_fn_supptable2)
+
+  output_supptable2_full =
+  do.call(rbind, output_supptable2_full_raw)
+  
+  output_supptable2_full =
+  cbind(output_labels_supptable2, output_supptable2_full) %>%
+  separate(eqns_supptable2_labels, into = c("outcome", "BAmeasure"), sep = ", ") %>%
+  separate(svydesign_list_labels_supptable2, into = c("temp1", "temp2", "sample", "subsample")) %>%
+  mutate(conf.low = format(round(conf.low,2), nsmall = 2),
+         conf.high = format(round(conf.high,2), nsmall = 2)) %>%
+  mutate(CI = paste("(",conf.low,",",conf.high,")", sep = "")) %>%
+  select(outcome, sample, subsample, term, estimate, CI, nobs) %>%
+  pivot_wider(names_from = outcome, values_from = c("estimate", "CI", "nobs")) %>%
+  filter((term %in% c("paa_sd", "kdma_sd", "hdlog_sd") & sample == "vbs") |
+          (term %in% c("horvathadv_sd", "hannumadv_sd", "levinednamadv_sd", "grimageadv_sd", "poa_sd") & sample == "DNAm")
+         ) %>%
+  select(sample, subsample, term, 
+         estimate_fn_score, CI_fn_score, nobs_fn_score,
+         estimate_adl_cat, CI_adl_cat, nobs_adl_cat,
+         estimate_dx_c_num, CI_dx_c_num, nobs_dx_c_num) %>%
+  mutate(term = factor(term, levels = c("paa_sd", "kdma_sd", "hdlog_sd", "horvathadv_sd", "hannumadv_sd", "levinednamadv_sd", "grimageadv_sd", "poa_sd"))) %>%
+  arrange(term)
+      
+output_supptable2_full %>%
+  knitr::kable()
+```
+
+Continuous outcomes
+
+```{r}
+################  Writing function: Mediator-outcome relationship ################ 
+
+mediator_fn_supptable2_linear =
+  function(equation, design) {
+    
+  model = svyglm( 
+        formula = equation, 
+        family = gaussian,
+        design 
+        ) 
+  
+  estimate =
+    model %>%
+    broom::tidy(conf.int = TRUE) %>%
+    filter(term != "(Intercept)" & term != "center_age" & term != "sexMen") %>%
+    dplyr::select(term, estimate, conf.low, conf.high)
+  
+  nobs = 
+    nobs(model)
+  
+  cbind(estimate, nobs)
+    
+  }
+
+
+################ Input lists + labels ################ 
+
+outcome_list_linear = list(srh = "srh")
+covariate_list = list("center_age + sex")
+exposure_list = 
+  list(paa_sd = "paa_sd", kdma_sd = "kdma_sd", hdlog_sd = "hdlog_sd", horvathadv_sd = "horvathadv_sd", hannumadv_sd = "hannumadv_sd", levinednamadv_sd = "levinednamadv_sd", grimageadv_sd = "grimageadv_sd", poa_sd = "poa_sd")
+svydesign_list_linear = list(hrs_design_vbs_full = hrs_design_vbs_full, hrs_design_DNAm_full = hrs_design_DNAm_full)
+
+regression_eqns_list_supptable2_linear =
+  list(outcome = outcome_list_linear, covariates = covariate_list, exposure = exposure_list)
+eqns_supptable2_linear =
+  cross_df(regression_eqns_list_supptable2_linear) %>%
+  mutate(equation = paste(outcome, " ~ ", covariates, " + ", exposure, sep = ""))
+eqns_supptable2_list_linear =
+  as.list(eqns_supptable2_linear$equation)
+
+eqns_supptable2_labels_linear =
+  eqns_supptable2_linear %>%
+  mutate(outcome_exposure = paste(outcome, exposure, sep = ", ")) %>%
+  select(outcome_exposure)
+  
+svydesign_list_labels_supptable2_linear =
+  tibble(
+    svydesign = c("hrs_design_vbs_full", 
+                  "hrs_design_DNAm_full")
+  )
+
+
+inputs_list_supptable2_linear =
+  list(eqns_supptable2_list_linear = eqns_supptable2_list_linear, svydesign_list_linear = svydesign_list_linear) %>%
+  cross_df()
+
+output_labels_supptable2_linear =
+  list(eqns_supptable2_labels_linear = eqns_supptable2_labels_linear$outcome_exposure, svydesign_list_labels_supptable2_linear = svydesign_list_labels_supptable2_linear$svydesign) %>%
+  cross_df()
+
+################ Output ################ 
+
+output_supptable2_full_linear_raw = 
+  pmap(list(inputs_list_supptable2_linear$eqns_supptable2_list_linear, inputs_list_supptable2_linear$svydesign_list_linear), mediator_fn_supptable2_linear)
+
+  output_supptable2_full_linear =
+  do.call(rbind, output_supptable2_full_linear_raw)
+  
+  output_supptable2_full_linear =
+  cbind(output_labels_supptable2_linear, output_supptable2_full_linear) %>%
+  separate(eqns_supptable2_labels_linear, into = c("outcome", "BAmeasure"), sep = ", ") %>%
+  separate(svydesign_list_labels_supptable2_linear, into = c("temp1", "temp2", "sample", "subsample")) %>%
+  mutate(conf.low = format(round(conf.low,2), nsmall = 2),
+         conf.high = format(round(conf.high,2), nsmall = 2)) %>%
+  mutate(CI = paste("(",conf.low,",",conf.high,")", sep = "")) %>%
+  select(outcome, sample, subsample, term, estimate, CI, nobs) %>%
+  pivot_wider(names_from = outcome, values_from = c("estimate", "CI", "nobs")) %>%
+  filter((term %in% c("paa_sd", "kdma_sd", "hdlog_sd") & sample == "vbs") |
+          (term %in% c("horvathadv_sd", "hannumadv_sd", "levinednamadv_sd", "grimageadv_sd", "poa_sd") & sample == "DNAm")
+         ) %>%
+  select(sample, subsample, term, 
+         estimate_srh, CI_srh, nobs_srh) %>%
+  mutate(term = factor(term, levels = c("paa_sd", "kdma_sd", "hdlog_sd", "horvathadv_sd", "hannumadv_sd", "levinednamadv_sd", "grimageadv_sd", "poa_sd"))) %>%
+  arrange(term)
+      
+output_supptable2_full_linear %>%
+  knitr::kable()
+```
+
+Analysis of chronological age
+
+```{r}
+################  Writing function: Mediator-outcome relationship ################ 
+mediator_fn_supptable2 =
+  function(equation, design) {
+    
+  model =
+    svyglm( 
+        formula = equation, 
+        family = poisson(link = "log"),
+        design 
+        )
+  
+    estimate =
+      model %>%
+      broom::tidy(exponentiate = TRUE, conf.int = TRUE) %>%
+      filter(term != "(Intercept)" & term != "center_age" & term != "sexMen") %>%
+      dplyr::select(term, estimate, conf.low, conf.high)
+      
+    nobs = 
+      nobs(model)
+    
+    cbind(estimate, nobs)
+    
+  }
+
+mediator_fn_supptable2_linear =
+  function(equation, design) {
+    
+  model =
+    svyglm( 
+        formula = equation, 
+        family = gaussian,
+        design 
+        )
+  
+    estimate =
+      model %>%
+      broom::tidy(conf.int = TRUE) %>%
+      filter(term != "(Intercept)" & term != "center_age" & term != "sexMen") %>%
+      dplyr::select(term, estimate, conf.low, conf.high)
+      
+    nobs = 
+      nobs(model)
+    
+    cbind(estimate, nobs)
+    
+  }
+
+################ Input lists + labels ################ 
+
+eqns_list_supptable2_CA =
+  list(fn_score = "fn_score ~ scale(age) + sex",
+       adl_cat = "adl_cat ~ scale(age) + sex",
+       dx_c_num = "dx_c_num ~ scale(age) + sex"
+       )
+
+svydesign_list_supptable2_CA = 
+  list(
+  hrs_design_vbs_full = hrs_design_vbs_full)
+
+inputs_list_supptable2_CA =
+  list(eqns_list_supptable2_CA = eqns_list_supptable2_CA, svydesign_list_supptable2_CA = svydesign_list_supptable2_CA) %>%
+  cross_df()
+  
+eqns_list_supptable2_CA_labels =
+  list(fn_score = "fn_score",
+       adl_cat = "adl_cat",
+       dx_c_num = "dx_c_num"
+       )
+
+svydesign_list_supptable2_CA_labels = list(
+  hrs_design_vbs_full = "hrs_design_vbs_full")
+
+inputs_list_supptable2_CA_labels =
+  list(eqns_list_supptable2_CA_labels = eqns_list_supptable2_CA_labels, svydesign_list_supptable2_CA_labels = svydesign_list_supptable2_CA_labels) %>%
+  cross_df()
+
+
+eqns_list_supptable2_CA_linear =
+  list(fn = "srh ~ scale(age) + sex")
+
+svydesign_list_supptable2_CA_linear = 
+  list(
+  hrs_design_vbs_full = hrs_design_vbs_full)
+
+inputs_list_supptable2_CA_linear =
+  list(eqns_list_supptable2_CA_linear = eqns_list_supptable2_CA_linear, svydesign_list_supptable2_CA_linear = svydesign_list_supptable2_CA_linear) %>%
+  cross_df()
+  
+eqns_list_supptable2_CA_labels_linear =
+  list(srh = "srh")
+
+svydesign_list_supptable2_CA_labels_linear = list(
+  hrs_design_vbs_full = "hrs_design_vbs_full")
+
+inputs_list_supptable2_CA_labels_linear =
+  list(eqns_list_supptable2_CA_labels_linear = eqns_list_supptable2_CA_labels_linear, svydesign_list_supptable2_CA_labels_linear = svydesign_list_supptable2_CA_labels_linear) %>%
+  cross_df()
+
+
+################ Output ################ 
+
+options(survey.lonely.psu="adjust")
+
+output_supptable2_CA_raw = 
+  pmap(list(
+    inputs_list_supptable2_CA$eqns_list_supptable2_CA, 
+    inputs_list_supptable2_CA$svydesign_list_supptable2_CA), 
+    mediator_fn_supptable2)
+
+output_supptable2_CA =
+  do.call(rbind, output_supptable2_CA_raw)
+
+output_supptable2_CA =
+  cbind(inputs_list_supptable2_CA_labels, output_supptable2_CA) %>%
+  separate(svydesign_list_supptable2_CA_labels, into = c("temp1", "temp2", "sample", "subsample")) %>%
+  mutate(conf.low = format(round(conf.low,2), nsmall = 2),
+         conf.high = format(round(conf.high,2), nsmall = 2)) %>%
+  mutate(CI = paste("(",conf.low,",",conf.high,")", sep = "")) %>%
+  rename(outcome = eqns_list_supptable2_CA_labels) %>%
+  select(outcome, subsample, estimate, CI, nobs) %>%
+  pivot_wider(names_from = outcome, values_from = c("estimate", "CI", "nobs")) %>%
+  select(subsample,
+         estimate_fn_score, CI_fn_score, nobs_fn_score,
+         estimate_adl_cat, CI_adl_cat, nobs_adl_cat,
+         estimate_dx_c_num, CI_dx_c_num, nobs_dx_c_num)
+      
+output_supptable2_CA_linear_raw = 
+  pmap(list(
+    inputs_list_supptable2_CA_linear$eqns_list_supptable2_CA_linear, 
+    inputs_list_supptable2_CA_linear$svydesign_list_supptable2_CA_linear), 
+    mediator_fn_supptable2_linear)
+
+output_supptable2_CA_linear =
+  do.call(rbind, output_supptable2_CA_linear_raw)
+
+output_supptable2_CA_linear =
+  cbind(inputs_list_supptable2_CA_labels_linear, output_supptable2_CA_linear) %>%
+  separate(svydesign_list_supptable2_CA_labels_linear, into = c("temp1", "temp2", "sample", "subsample")) %>%
+  mutate(conf.low = format(round(conf.low,2), nsmall = 2),
+         conf.high = format(round(conf.high,2), nsmall = 2)) %>%
+  mutate(CI = paste("(",conf.low,",",conf.high,")", sep = "")) %>%
+  rename(outcome = eqns_list_supptable2_CA_labels_linear) %>%
+  select(outcome, subsample, estimate, CI, nobs) %>%
+  pivot_wider(names_from = outcome, values_from = c("estimate", "CI", "nobs")) %>%
+  select(subsample,
+         estimate_srh, CI_srh, nobs_srh)
+      
+output_supptable2_CA_linear %>%
+  knitr::kable()
+```
+
+#### Race-stratified analysis
+
+Count outcomes
+
+```{r}
+################  Writing function: Mediator-outcome relationship ################ 
+mediator_fn_supptable2 =
+  function(sample, BAmeasure) {
+    
+    model = glm(fn_score ~ center_age + sex + r13cenreg + pull(sample, BAmeasure), data = sample, family = poisson(link = "log"))
+    
+    estimate =
+      model %>%
+      broom::tidy(exponentiate = TRUE, conf.int = TRUE) %>%
+      filter(term == "pull(sample, BAmeasure)") %>%
+      dplyr::select(term, estimate, conf.low, conf.high)
+      
+    nobs = 
+      nobs(model)
+    
+    cbind(estimate, nobs)
+    
+  }
+
+mediator_adl_supptable2 =
+  function(sample, BAmeasure) {
+    
+    model = glm(adl_cat ~ center_age + sex + r13cenreg + pull(sample, BAmeasure), data = sample, family = poisson(link = "log")) 
+    
+    estimate =
+      model %>%
+      broom::tidy(exponentiate = TRUE, conf.int = TRUE) %>%
+      filter(term == "pull(sample, BAmeasure)") %>%
+      dplyr::select(term, estimate, conf.low, conf.high)
+      
+    nobs = 
+      nobs(model)
+    
+    cbind(estimate, nobs)
+    
+  }
+
+mediator_dxc_supptable2 =
+  function(sample, BAmeasure) {
+    
+    model = glm(dx_c_num ~ center_age + sex + r13cenreg + pull(sample, BAmeasure), data = sample, family = poisson(link = "log"))
+    
+    estimate =
+      model %>%
+      broom::tidy(exponentiate = TRUE, conf.int = TRUE) %>%
+      filter(term == "pull(sample, BAmeasure)") %>%
+      dplyr::select(term, estimate, conf.low, conf.high)
+      
+    nobs = 
+      nobs(model)
+    
+    cbind(estimate, nobs)
+    
+  }
+
+################ Input lists + labels ################ 
+  
+analysis_samples_supptable2 = 
+  list(BA_subsample_white = BA_subsample_white, 
+       BA_subsample_black = BA_subsample_black,
+       DNAm_subsample_white = DNAm_subsample_white,
+       DNAm_subsample_black = DNAm_subsample_black)
+
+BA_measures_advsd =
+  list(paa_sd = "paa_sd", kdma_sd = "kdma_sd", hdlog_sd = "hdlog_sd", horvathadv_sd = "horvathadv_sd", hannumadv_sd = "hannumadv_sd", levinednamadv_sd = "levinednamadv_sd", grimageadv_sd = "grimageadv_sd", poa_sd = "poa_sd")
+
+analysis_combos_supptable2 =
+  list(x = analysis_samples_supptable2, y = BA_measures_advsd)
+dataset_analysis_combos_supptable2 =
+  cross_df(analysis_combos_supptable2) %>%
+  rename(sample = x, measure = y)
+
+dataset_analysis_combos_supptable2_labels =
+  dataset_analysis_combos_supptable2 %>%
+  mutate(samplename = rep(c("BA_subsample_white", "BA_subsample_black", "DNAm_subsample_white", "DNAm_subsample_black"), times = 8)) %>%
+  dplyr::select(samplename, measure)
+
+################ Output ################ 
+output_supptable2_fn =
+  map2_dfr(dataset_analysis_combos_supptable2$sample, dataset_analysis_combos_supptable2$measure, mediator_fn_supptable2)
+  
+    output_supptable2_fn =
+    cbind(dataset_analysis_combos_supptable2_labels, output_supptable2_fn)
+
+output_supptable2_adl =
+  map2_dfr(dataset_analysis_combos_supptable2$sample, dataset_analysis_combos_supptable2$measure, mediator_adl_supptable2)
+
+    output_supptable2_adl =
+    cbind(dataset_analysis_combos_supptable2_labels, output_supptable2_adl)
+
+output_supptable2_dxc =
+  map2_dfr(dataset_analysis_combos_supptable2$sample, dataset_analysis_combos_supptable2$measure, mediator_dxc_supptable2)
+
+    output_supptable2_dxc =
+    cbind(dataset_analysis_combos_supptable2_labels, output_supptable2_dxc)
+    
+names(output_supptable2_fn) <- paste0(names(output_supptable2_fn), "_fn")
+names(output_supptable2_adl) <- paste0(names(output_supptable2_adl), "_adl")
+names(output_supptable2_dxc) <- paste0(names(output_supptable2_dxc), "_dxc")
+
+output_supptable2_strat =
+  left_join(output_supptable2_fn, output_supptable2_adl, c("measure_fn" = "measure_adl", "samplename_fn" = "samplename_adl"))
+
+output_supptable2_strat =
+  left_join(output_supptable2_strat, output_supptable2_dxc, c("measure_fn" = "measure_dxc", "samplename_fn" = "samplename_dxc"))
+
+output_supptable2_strat =
+  output_supptable2_strat %>%
+  rename(subsample = samplename_fn,
+         term = measure_fn,
+         estimate_fn_score = estimate_fn,
+         estimate_adl_cat = estimate_adl,
+         estimate_dx_c_num = estimate_dxc,
+         nobs_fn_score = nobs_fn,
+         nobs_adl_cat = nobs_adl,
+         nobs_dx_c_num = nobs_dxc
+         ) %>%
+  select(-term_fn, -term_adl, -term_dxc) %>%
+  mutate(conf.low_fn = format(round(conf.low_fn,2), nsmall = 2),
+         conf.high_fn = format(round(conf.high_fn,2), nsmall = 2),
+         conf.low_adl = format(round(conf.low_adl,2), nsmall = 2),
+         conf.high_adl = format(round(conf.high_adl,2), nsmall = 2),
+         conf.low_dxc = format(round(conf.low_dxc,2), nsmall = 2),
+         conf.high_dxc = format(round(conf.high_dxc,2), nsmall = 2)) %>%
+  mutate(CI_fn_score = paste("(",conf.low_fn,",",conf.high_fn,")", sep = ""),
+         CI_adl_cat = paste("(",conf.low_adl,",",conf.high_adl,")", sep = ""),
+         CI_dx_c_num = paste("(",conf.low_dxc,",",conf.high_dxc,")", sep = "")) %>%
+  dplyr::filter((term %in% c("paa_sd", "kdma_sd", "hdlog_sd") & (subsample %in% c("BA_subsample_white", "BA_subsample_black"))) |
+          (term %in% c("horvathadv_sd", "hannumadv_sd", "levinednamadv_sd", "grimageadv_sd", "poa_sd") & (subsample %in% c("DNAm_subsample_white", "DNAm_subsample_black")))
+         ) %>%
+  select(subsample, term, 
+         estimate_fn_score, CI_fn_score, nobs_fn_score,
+         estimate_adl_cat, CI_adl_cat, nobs_adl_cat,
+         estimate_dx_c_num, CI_dx_c_num, nobs_dx_c_num)
+
+output_supptable2_strat %>%
+  knitr::kable()
+```
+
+Continuous outcomes
+
+```{r}
+################  Writing function: Mediator-outcome relationship ################ 
+
+mediator_fn_supptable2_linear_strat =
+  function(sample, BAmeasure) {
+    
+    model = glm(srh ~ center_age + sex + r13cenreg + pull(sample, BAmeasure), data = sample, family = gaussian)
+    
+    estimate =
+      model %>%
+      broom::tidy(conf.int = TRUE) %>%
+      filter(term == "pull(sample, BAmeasure)") %>%
+      dplyr::select(term, estimate, conf.low, conf.high)
+      
+    nobs = 
+      nobs(model)
+    
+    cbind(estimate, nobs)
+    
+  }
+
+################ Input lists + labels ################ 
+  
+analysis_samples_supptable2_linear_strat = 
+  list(BA_subsample_white = BA_subsample_white, 
+       BA_subsample_black = BA_subsample_black,
+       DNAm_subsample_white = DNAm_subsample_white,
+       DNAm_subsample_black = DNAm_subsample_black)
+
+BA_measures_advsd_linear_strat =
+  list(paa_sd = "paa_sd", kdma_sd = "kdma_sd", hdlog_sd = "hdlog_sd", horvathadv_sd = "horvathadv_sd", hannumadv_sd = "hannumadv_sd", levinednamadv_sd = "levinednamadv_sd", grimageadv_sd = "grimageadv_sd", poa_sd = "poa_sd")
+
+analysis_combos_supptable2_linear_strat =
+  list(x = analysis_samples_supptable2_linear_strat, y = BA_measures_advsd_linear_strat)
+dataset_analysis_combos_supptable2_linear_strat =
+  cross_df(analysis_combos_supptable2_linear_strat) %>%
+  rename(sample = x, measure = y)
+
+dataset_analysis_combos_supptable2_labels_linear_strat =
+  dataset_analysis_combos_supptable2_linear_strat %>%
+  mutate(samplename = rep(c("BA_subsample_white", "BA_subsample_black", "DNAm_subsample_white", "DNAm_subsample_black"), times = 8)) %>%
+  dplyr::select(samplename, measure)
+
+
+################ Output ################ 
+output_supptable2_strat_linear_raw =
+  map2_dfr(dataset_analysis_combos_supptable2_linear_strat$sample, dataset_analysis_combos_supptable2_linear_strat$measure, mediator_fn_supptable2_linear_strat)
+  
+    output_supptable2_strat_linear =
+    cbind(dataset_analysis_combos_supptable2_labels_linear_strat, output_supptable2_strat_linear_raw) %>%
+      dplyr::select(-term) %>%
+  rename(subsample = samplename,
+         term = measure,
+         estimate_srh = estimate,
+         nobs_srh = nobs
+         ) %>%
+  mutate(conf.low = format(round(conf.low,2), nsmall = 2),
+         conf.high = format(round(conf.high,2), nsmall = 2)) %>%
+  mutate(CI_srh = paste("(",conf.low,",",conf.high,")", sep = "")) %>%
+  dplyr::filter((term %in% c("paa_sd", "kdma_sd", "hdlog_sd") & (subsample %in% c("BA_subsample_white", "BA_subsample_black"))) |
+          (term %in% c("horvathadv_sd", "hannumadv_sd", "levinednamadv_sd", "grimageadv_sd", "poa_sd") & (subsample %in% c("DNAm_subsample_white", "DNAm_subsample_black")))
+         ) %>%
+  select(subsample, term, 
+         estimate_srh, CI_srh, nobs_srh)
+
+output_supptable2_strat_linear %>%
+  knitr::kable()
+
+```
+
+Analysis of chronological age
+
+```{r}
+
+################  Writing function: Mediator-outcome relationship ################ 
+chronoage_supptable2 =
+  function(sample,outcome) {
+    
+  model =
+    glm(pull(sample, outcome) ~ scale(age) + sex + r13cenreg, data = sample, family = poisson(link = "log"))
+
+
+    estimate =
+      model %>%
+      broom::tidy() %>%
+      filter(term == "scale(age)") %>%
+      mutate(IRR = exp(estimate)) %>%
+      mutate(lowerCI = exp(estimate - (1.96*std.error)),
+             upperCI = exp(estimate + (1.96*std.error))) %>%
+      dplyr::select(IRR, lowerCI, upperCI)
+      
+    nobs = 
+      nobs(model)
+    
+    cbind(estimate, nobs)
+      
+    }
+
+chronoage_supptable2_linear_strat =
+  function(sample,outcome) {
+    
+  model =
+    glm(pull(sample, outcome) ~ scale(age) + sex + r13cenreg, data = sample, family = gaussian)
+
+    estimate =
+      model %>%
+      broom::tidy(conf.int = TRUE) %>%
+      filter(term == "scale(age)") %>%
+      dplyr::select(term, estimate, conf.low, conf.high)
+      
+    nobs = 
+      nobs(model)
+    
+    cbind(estimate, nobs)
+      
+  }
+
+################ Input lists + labels ################ 
+outcome_list_supptable2 = 
+  list(fn_score = "fn_score",
+       adl_cat = "adl_cat", 
+       dx_c_num = "dx_c_num")
+
+analysis_combos_supptable2_CA =
+  list(x = analysis_samples_supptable2, y = outcome_list_supptable2)
+dataset_analysis_combos_supptable2_CA =
+  cross_df(analysis_combos_supptable2_CA) %>%
+  rename(sample = x, outcome = y)
+
+dataset_analysis_combos_supptable2_CA_labels =
+  dataset_analysis_combos_supptable2_CA %>%
+  mutate(samplename = rep(c("BA_subsample_white", "BA_subsample_black", "DNAm_subsample_white", "DNAm_subsample_black"), times = 3)) %>%
+  dplyr::select(samplename, outcome)
+
+outcome_list_supptable2 = 
+  list(srh = "srh")
+
+analysis_combos_supptable2_CA_linear_strat =
+  list(x = analysis_samples_supptable2, y = outcome_list_supptable2)
+dataset_analysis_combos_supptable2_CA_linear_strat =
+  cross_df(analysis_combos_supptable2_CA_linear_strat) %>%
+  rename(sample = x, outcome = y)
+
+dataset_analysis_combos_supptable2_CA_labels_linear_strat =
+  dataset_analysis_combos_supptable2_CA_linear_strat %>%
+  mutate(samplename = c("BA_subsample_white", "BA_subsample_black", "DNAm_subsample_white", "DNAm_subsample_black")) %>%
+  dplyr::select(samplename, outcome)
+
+
+################ Output ################ 
+
+output_supptable2_CA_strat =
+  map2_dfr(dataset_analysis_combos_supptable2_CA$sample, dataset_analysis_combos_supptable2_CA$outcome, chronoage_supptable2)
+
+output_supptable2_CA_strat =
+  cbind(output_supptable2_CA_strat, dataset_analysis_combos_supptable2_CA_labels) %>%
+  pivot_wider(names_from = "outcome", values_from = c("IRR", "lowerCI", "upperCI", "nobs")) %>%
+  mutate(lowerCI_fn_score = format(round(lowerCI_fn_score,2), nsmall = 2),
+         upperCI_fn_score = format(round(upperCI_fn_score,2), nsmall = 2),
+         lowerCI_adl_cat = format(round(lowerCI_adl_cat,2), nsmall = 2),
+         upperCI_adl_cat = format(round(upperCI_adl_cat,2), nsmall = 2),
+         lowerCI_dx_c_num = format(round(lowerCI_dx_c_num,2), nsmall = 2),
+         upperCI_dx_c_num = format(round(upperCI_dx_c_num,2), nsmall = 2)
+         ) %>%
+  mutate(fn_CI = paste("(",lowerCI_fn_score,",",upperCI_fn_score,")", sep = ""),
+         adl_CI = paste("(",lowerCI_adl_cat,",",upperCI_adl_cat,")", sep = ""),
+         dxc_CI = paste("(",lowerCI_dx_c_num,",",upperCI_dx_c_num,")", sep = "")
+         ) %>%
+  dplyr::select(samplename, IRR_fn_score, fn_CI, nobs_fn_score, IRR_adl_cat, adl_CI, nobs_adl_cat, IRR_dx_c_num, dxc_CI, nobs_dx_c_num) %>%
+  filter(samplename %in% c("BA_subsample_white", "BA_subsample_black"))
+
+output_supptable2_chronoage_linear_strat =
+  map2_dfr(dataset_analysis_combos_supptable2_CA_linear_strat$sample, dataset_analysis_combos_supptable2_CA_linear_strat$outcome, chronoage_supptable2_linear_strat)
+
+output_supptable2_chronoage_linear_strat =
+  cbind(output_supptable2_chronoage_linear_strat, dataset_analysis_combos_supptable2_CA_labels_linear_strat) %>%
+  pivot_wider(names_from = "outcome", values_from = c("estimate", "conf.low", "conf.high", "nobs")) %>%
+  mutate(conf.low_srh = format(round(conf.low_srh,2), nsmall = 2),
+         conf.high_srh = format(round(conf.high_srh,2), nsmall = 2)
+         ) %>%
+  mutate(srh_CI = paste("(",conf.low_srh,",",conf.high_srh,")", sep = "")
+         ) %>%
+  dplyr::select(samplename, estimate_srh, srh_CI, nobs_srh,) %>%
+  filter(samplename %in% c("BA_subsample_white", "BA_subsample_black"))
+```
+
+
+# 2) Exposure-outcome relationship: Effect-sizes for association of Black vs. White race with healthspan-related characteristics, before and after covariate adjustment for biological-age advancement.
+
+Count outcomes
+```{r}
+################ Defining samples ################ 
+
+BA_subsample_bw =
+  BA_subsample %>%
+  filter(raracem == "1.white/caucasian" | raracem == "2.black/african american")
+
+DNAm_subsample_bw =
+  DNAm_subsample %>%
+  filter(raracem == "1.white/caucasian" | raracem == "2.black/african american")
+
+################  Writing function: exposure-outcome relationship ################ 
+
+racialdisparity_supptable3_f = 
+  function(outcome, sample){
+  
+  model = glm(pull(sample, outcome) ~ raracem + age + sex + r13cenreg, data = sample, family = poisson(link = "log")) 
+  
+    estimate =
+      model %>%
+      broom::tidy() %>%
+      filter(term == "raracem2.black/african american") %>%
+      mutate(IRR = exp(estimate)) %>%
+      mutate(lowerCI = exp(estimate - (1.96*std.error)),
+             upperCI = exp(estimate + (1.96*std.error))) %>%
+      mutate(lowerCI = format(round(lowerCI,2), nsmall = 2),
+             upperCI = format(round(upperCI,2), nsmall = 2)) %>%
+      mutate(CI = paste("(",lowerCI,",",upperCI,")", sep = "")) %>%
+      dplyr::select(IRR, CI)
+      
+    nobs = 
+      nobs(model)
+    
+    cbind(estimate, nobs)
+    
+  }
+
+racialdisparity_supptable3_adjusted_f = 
+  function(outcome, BAmeasure, sample){
+    
+    model = glm(pull(sample, outcome) ~ raracem + age + sex + r13cenreg + pull(sample, BAmeasure), data = sample, family = poisson(link = "log"))
+    
+    estimate =
+      model %>%
+      broom::tidy() %>%
+      filter(term == "raracem2.black/african american") %>%
+      mutate(IRR = exp(estimate)) %>%
+      mutate(lowerCI = exp(estimate - (1.96*std.error)),
+             upperCI = exp(estimate + (1.96*std.error))) %>%
+      mutate(lowerCI = format(round(lowerCI,2), nsmall = 2),
+             upperCI = format(round(upperCI,2), nsmall = 2)) %>%
+      mutate(CI = paste("(",lowerCI,",",upperCI,")", sep = "")) %>%
+      dplyr::select(IRR, CI)
+      
+    nobs = 
+      nobs(model)
+    
+    cbind(estimate, nobs)
+    
+  }
+
+################ Input lists + labels ################ 
+outcome_list_supptable3 = 
+  list(fn_score = "fn_score",
+       adl_cat = "adl_cat", 
+       dx_c_num = "dx_c_num")
+
+sample_list_supptable3 = 
+  list(BA_subsample_bw = BA_subsample_bw,
+       DNAm_subsample_bw = DNAm_subsample_bw)
+
+analysis_combos_supptable3 =
+  list(x = outcome_list_supptable3, y = sample_list_supptable3)
+dataset_analysis_combos_supptable3 =
+  cross_df(analysis_combos_supptable3) %>%
+  rename(outcome = x, sample = y)
+
+dataset_analysis_combos_supptable3_labels =
+  dataset_analysis_combos_supptable3 %>%
+  mutate(samplename = rep(c("BA_subsample", "DNAm_subsample"), each = 3)) %>%
+  dplyr::select(samplename, outcome)
+
+dataset_supptable3 =
+  list(x = outcome_list_supptable3, y = BA_measures_advsd, z = sample_list_supptable3)
+
+dataset_supptable3_combo =
+  cross_df(dataset_supptable3) %>%
+  rename(outcome = x, measure = y, sample = z)
+
+dataset_supptable3_combo_labels =
+  dataset_supptable3_combo %>%
+  as.data.frame() %>%
+  mutate(samplename = rep(c("BA_subsample", "DNAm_subsample"), each = 24)) %>%
+  dplyr::select(samplename, measure, outcome)
+
+################ Output ################ 
+
+output_unadjusted_supptable3 =
+  map2_dfr(dataset_analysis_combos_supptable3$outcome, dataset_analysis_combos_supptable3$sample, racialdisparity_supptable3_f)
+
+output_adjusted_supptable3 =
+  pmap_dfr(list(dataset_supptable3_combo$outcome, dataset_supptable3_combo$measure, dataset_supptable3_combo$sample), racialdisparity_supptable3_adjusted_f)
+
+```
+
+Continuous outcomes
+```{r}
+################  Writing function: Mediator-outcome relationship ################ 
+
+racialdisparity_supptable3_f_linear = 
+  function(outcome, sample){
+  
+  model = glm(pull(sample, outcome) ~ raracem + age + sex + r13cenreg, data = sample, family = gaussian) 
+  
+    estimate =
+      model %>%
+      broom::tidy(conf.int = T) %>%
+      filter(term == "raracem2.black/african american") %>%
+      mutate(conf.low = format(round(conf.low,2), nsmall = 2),
+             conf.high = format(round(conf.high,2), nsmall = 2)) %>%
+      mutate(CI = paste("(",conf.low,",",conf.high,")", sep = "")) %>%
+      dplyr::select(estimate, CI)
+      
+    nobs = 
+      nobs(model)
+    
+    cbind(estimate, nobs)
+    
+  }
+
+racialdisparity_supptable3_adjusted_f_linear = 
+  function(outcome, BAmeasure, sample){
+    
+    model = glm(pull(sample, outcome) ~ raracem + age + sex + r13cenreg + pull(sample, BAmeasure), data = sample, family = gaussian)
+    
+    estimate =
+      model %>%
+      broom::tidy(conf.int = T) %>%
+      filter(term == "raracem2.black/african american") %>%
+      mutate(conf.low = format(round(conf.low,2), nsmall = 2),
+             conf.high = format(round(conf.high,2), nsmall = 2)) %>%
+      mutate(CI = paste("(",conf.low,",",conf.high,")", sep = "")) %>%
+      dplyr::select(estimate, CI)
+      
+    nobs = 
+      nobs(model)
+    
+    cbind(estimate, nobs)
+    
+  }
+
+
+#Analysis samples
+outcome_list_supptable3_linear = 
+  list(srh = "srh")
+
+sample_list_supptable3_linear = 
+  list(BA_subsample_bw = BA_subsample_bw,
+       DNAm_subsample_bw = DNAm_subsample_bw)
+
+analysis_combos_supptable3_linear =
+  list(x = outcome_list_supptable3_linear, y = sample_list_supptable3_linear)
+dataset_analysis_combos_supptable3_linear =
+  cross_df(analysis_combos_supptable3_linear) %>%
+  rename(outcome = x, sample = y)
+
+dataset_analysis_combos_supptable3_linear_labels =
+  dataset_analysis_combos_supptable3_linear %>%
+  mutate(samplename = c("BA_subsample", "DNAm_subsample")) %>%
+  dplyr::select(samplename, outcome)
+
+dataset_supptable3_linear =
+  list(x = outcome_list_supptable3_linear, y = BA_measures_advsd, z = sample_list_supptable3_linear)
+dataset_supptable3_combo_linear =
+  cross_df(dataset_supptable3_linear) %>%
+  rename(outcome = x, measure = y, sample = z)
+
+dataset_supptable3_combo_labels_linear =
+  dataset_supptable3_combo_linear %>%
+  as.data.frame() %>%
+  mutate(samplename = rep(c("BA_subsample", "DNAm_subsample"), each = 8)) %>%
+  dplyr::select(samplename, measure, outcome)
+
+#Applying function
+
+output_unadjusted_supptable3_linear =
+  map2_dfr(dataset_analysis_combos_supptable3_linear$outcome, dataset_analysis_combos_supptable3_linear$sample, racialdisparity_supptable3_f_linear)
+
+output_adjusted_supptable3_linear =
+  pmap_dfr(list(dataset_supptable3_combo_linear$outcome, dataset_supptable3_combo_linear$measure, dataset_supptable3_combo_linear$sample), racialdisparity_supptable3_adjusted_f_linear)
+
+```
+
+
+## 3) Exposure-mediator interactions: Tests of Black-White differences in observed associated between biological-age advancement and healthspan-related characteristics (interaction term and RERIs)
+
+Count outcomes - interaction term
+```{r}
+################  Writing function: Exposure-mediator interactions ################ 
+
+supptable5_interaction = function(outcome, sample, BAmeasure) {
+  
+  model =
+    glm(pull(sample, outcome) ~ center_age + sex + r13cenreg + pull(sample, BAmeasure) + raracem + pull(sample, BAmeasure)*raracem, data = sample, family = poisson(link = "log"))
+  
+  estimate =
+    model %>%
+    broom::tidy() %>%
+    filter(term == "pull(sample, BAmeasure):raracem2.black/african american") %>%
+    mutate(lowerCI = estimate - (1.96*std.error),
+           upperCI = estimate + (1.96*std.error))
+    
+  nobs = 
+    nobs(model)
+  
+  cbind(estimate, nobs)
+  
+}
+
+################ Input lists + labels ################ 
+
+## Analysis samples
+outcome_list_supptable5 = 
+  list(fn_score = "fn_score",
+       adl_cat = "adl_cat", 
+       dx_c_num = "dx_c_num")
+
+sample_list_supptable5_bw =
+  list(BA_subsample_bw = BA_subsample_bw, 
+       DNAm_subsample_bw = DNAm_subsample_bw)
+
+BAmeasure_list_supptable5 = 
+  BA_measures_advsd
+
+dataset_supptable5_bw =
+  list(x = outcome_list_supptable5, y = sample_list_supptable5_bw, z = BAmeasure_list_supptable5)
+dataset_supptable5_combo_bw =
+  cross_df(dataset_supptable5_bw) %>%
+  rename(outcome = x, sample = y, measure = z)
+
+dataset_supptable5_combo_labels_bw =
+  dataset_supptable5_combo_bw %>%
+  mutate(samplename = rep(c("BA_subsample", "DNAm_subsample"), each = 3, times = 8)) %>%
+  dplyr::select(outcome, samplename, measure)
+
+################ Output ################ 
+
+output_int_supptable5_bw = 
+  pmap_dfr(list(dataset_supptable5_combo_bw$outcome, dataset_supptable5_combo_bw$sample,
+                dataset_supptable5_combo_bw$measure), supptable5_interaction)
+
+output_int_supptable5_bw =
+  cbind(dataset_supptable5_combo_labels_bw, output_int_supptable5_bw) %>%
+  dplyr::select(outcome, samplename, measure, estimate, lowerCI, upperCI, p.value, nobs) %>%
+  filter(
+    (samplename == "BA_subsample" & (measure %in% c("paa_sd", "kdma_sd", "hdlog_sd"))) | 
+    (samplename == "DNAm_subsample" & (measure %in% c("levinednamadv_sd", "grimageadv_sd", "poa_sd")))
+  ) %>%
+  mutate(
+    lowerCI = format(round(lowerCI, 2), nsmall = 2),
+    upperCI = format(round(upperCI, 2), nsmall = 2)
+  ) %>%
+  mutate(CI = paste("(",lowerCI,",",upperCI,")", sep = "")) %>%
+  select(samplename, measure, outcome, estimate, CI, p.value, nobs) %>%
+  rename(est_int = estimate,
+         ci_int = CI,
+         p_int = p.value)
+```
+
+Count outcomes- RERI
+```{r}
+################  Writing function: Exposure-mediator interaction ################ 
+
+supptable5_reri_bw = function(outcome, sample, BAmeasure) {
+  
+  model = glm(pull(sample, outcome) ~ center_age + sex + r13cenreg + pull(sample, BAmeasure) + raracem + pull(sample, BAmeasure)*raracem, data = sample, family = poisson(link = "log"))  
+
+  estimate = 
+    epi.interaction(model, param = c("product"), coef = c(7, 8, 9),
+    type = "RERI", conf.level = 0.95)
+  
+  nobs = 
+    nobs(model)
+  
+  cbind(estimate, nobs)
+
+}
+
+  
+################ Input lists + labels ################ 
+
+## Analysis samples- same as above: analysis [dataset_supptable5_combo], labels [dataset_supptable5_combo_labels]
+
+################ Output ################ 
+
+output_reri_supptable5_bw = 
+  pmap_dfr(list(dataset_supptable5_combo_bw$outcome, dataset_supptable5_combo_bw$sample,
+                dataset_supptable5_combo_bw$measure), supptable5_reri_bw)
+
+output_reri_supptable5_bw =
+  cbind(dataset_supptable5_combo_labels_bw, output_reri_supptable5_bw) %>%
+  dplyr::select(outcome, samplename, measure, est, lower, upper, nobs) %>%
+  filter(
+    (samplename == "BA_subsample" & (measure %in% c("paa_sd", "kdma_sd", "hdlog_sd"))) | 
+    (samplename == "DNAm_subsample" & (measure %in% c("levinednamadv_sd", "grimageadv_sd", "poa_sd")))
+  ) %>%
+  mutate(
+    lower = format(round(lower, 2), nsmall = 2),
+    upper = format(round(upper, 2), nsmall = 2)
+  ) %>%
+  mutate(CI = paste("(",lower,",",upper,")", sep = "")) %>%
+  select(samplename, measure, outcome, est, CI, nobs) %>%
+  rename(est_reri = est,
+         ci_reri = CI,
+         nobs_reri = nobs)
+
+# Supplemental Table S5 output
+
+output_supptable5_bw =
+  left_join(output_int_supptable5_bw, output_reri_supptable5_bw, by = c("samplename", "measure", "outcome"))
+
+output_supptable5_bw %>%
+  knitr::kable()
+```
+
+Continuous outcomes- interaction term
+```{r}
+################  Writing function: Mediator-outcome relationship ################ 
+supptable5_interaction_linear = 
+  function(outcome, sample, BAmeasure) {
+  
+  model =
+    glm(pull(sample, outcome) ~ center_age + sex + r13cenreg + pull(sample, BAmeasure) + raracem + pull(sample, BAmeasure)*raracem, data = sample, family = gaussian)
+  
+  estimate =
+    model %>%
+    broom::tidy() %>%
+    filter(term == "pull(sample, BAmeasure):raracem2.black/african american") %>%
+    mutate(lowerCI = estimate - (1.96*std.error),
+           upperCI = estimate + (1.96*std.error))
+    
+  nobs = 
+    nobs(model)
+  
+  cbind(estimate, nobs)
+  
+}
+
+################ Input lists + labels ################ 
+
+## Analysis samples
+outcome_list_supptable5_linear = 
+  list(srh = "srh")
+
+sample_list_supptable5_linear_bw =
+  list(BA_subsample_bw = BA_subsample_bw, 
+       DNAm_subsample_bw = DNAm_subsample_bw)
+
+BAmeasure_list_supptable5_linear = 
+  BA_measures_advsd
+
+dataset_supptable5_linear_bw =
+  list(x = outcome_list_supptable5_linear, y = sample_list_supptable5_linear_bw, z = BAmeasure_list_supptable5_linear)
+dataset_supptable5_linear_combo_bw =
+  cross_df(dataset_supptable5_linear_bw) %>%
+  rename(outcome = x, sample = y, measure = z)
+
+dataset_supptable5_combo_linear_labels_bw =
+  dataset_supptable5_linear_combo_bw %>%
+  mutate(samplename = rep(c("BA_subsample", "DNAm_subsample"), times = 8)) %>%
+  dplyr::select(outcome, samplename, measure)
+
+################ Output ################ 
+
+output_int_supptable5_linear_bw = 
+  pmap_dfr(list(dataset_supptable5_linear_combo_bw$outcome, dataset_supptable5_linear_combo_bw$sample,
+                dataset_supptable5_linear_combo_bw$measure), supptable5_interaction_linear)
+
+output_int_supptable5_linear_bw =
+  cbind(dataset_supptable5_combo_linear_labels_bw, output_int_supptable5_linear_bw) %>%
+  dplyr::select(outcome, samplename, measure, estimate, lowerCI, upperCI, p.value, nobs) %>%
+  filter(
+    (samplename == "BA_subsample" & (measure %in% c("paa_sd", "kdma_sd", "hdlog_sd"))) | 
+    (samplename == "DNAm_subsample" & (measure %in% c("levinednamadv_sd", "grimageadv_sd", "poa_sd")))
+  ) %>%
+  mutate(
+    lowerCI = format(round(lowerCI, 2), nsmall = 2),
+    upperCI = format(round(upperCI, 2), nsmall = 2)
+  ) %>%
+  mutate(CI = paste("(",lowerCI,",",upperCI,")", sep = "")) %>%
+  select(samplename, measure, outcome, estimate, CI, p.value, nobs) %>%
+  rename(est_int = estimate,
+         ci_int = CI,
+         p_int = p.value)
+```
+
+Continuous outcomes - RERI
+```{r}
+################  Writing function: Mediator-outcome relationship ################ 
+supptable5_reri_linear_bw = 
+  function(outcome, sample, BAmeasure) {
+  
+  model =
+    glm(pull(sample, outcome) ~ center_age + sex + r13cenreg + pull(sample, BAmeasure) + raracem + pull(sample, BAmeasure)*raracem, data = sample, family = gaussian)
+
+  estimate = 
+    epi.interaction(model, param = c("product"), coef = c(7, 8, 9),
+    type = "RERI", conf.level = 0.95)
+  
+  nobs = 
+    nobs(model)
+  
+  cbind(estimate, nobs)
+
+}
+
+################ Input lists + labels ################ 
+  
+## Analysis samples- same as above: analysis [dataset_supptable5_combo], labels [dataset_supptable5_combo_labels]
+
+################ Output ################ 
+output_reri_supptable5_linear_bw = 
+  pmap_dfr(list(dataset_supptable5_linear_combo_bw$outcome, dataset_supptable5_linear_combo_bw$sample,
+                dataset_supptable5_linear_combo_bw$measure), supptable5_reri_linear_bw)
+
+output_reri_supptable5_linear_bw =
+  cbind(dataset_supptable5_combo_linear_labels_bw, output_reri_supptable5_linear_bw) %>%
+  dplyr::select(outcome, samplename, measure, est, lower, upper, nobs) %>%
+  filter(
+    (samplename == "BA_subsample" & (measure %in% c("paa_sd", "kdma_sd", "hdlog_sd"))) | 
+    (samplename == "DNAm_subsample" & (measure %in% c("levinednamadv_sd", "grimageadv_sd", "poa_sd")))
+  ) %>%
+  mutate(
+    lower = format(round(lower, 2), nsmall = 2),
+    upper = format(round(upper, 2), nsmall = 2)
+  ) %>%
+  mutate(CI = paste("(",lower,",",upper,")", sep = "")) %>%
+  select(samplename, measure, outcome, est, CI, nobs) %>%
+  rename(est_reri = est,
+         ci_reri = CI,
+         nobs_reri = nobs)
+```
+
+
+Analysis of chronological age - count outcomes
+
+```{r}
+################  Writing function: Mediator-outcome relationship ################ 
+
+supptable5_interaction_poisson_CA = function(outcome) {
+  
+  model =
+    glm(pull(BA_subsample_bw, outcome) ~ sex + r13cenreg + scale(age) + raracem + scale(age)*raracem, data = BA_subsample_bw, family = poisson(link = "log"))
+  
+  estimate =
+    model %>%
+    broom::tidy() %>%
+    filter(term == "scale(age):raracem2.black/african american") %>%
+    mutate(lowerCI = estimate - (1.96*std.error),
+           upperCI = estimate + (1.96*std.error))
+    
+  nobs = 
+    nobs(model)
+  
+  cbind(estimate, nobs)
+  
+}
+
+
+supptable5_reri_poisson_CA = function(outcome) {
+  
+  model =
+    glm(pull(BA_subsample_bw, outcome) ~ sex + r13cenreg + scale(age) + raracem + scale(age)*raracem, data = BA_subsample_bw, family = poisson(link = "log"))
+
+  estimate = 
+    epi.interaction(model, param = c("product"), coef = c(6, 7, 8),
+    type = "RERI", conf.level = 0.95)
+  
+  nobs = 
+    nobs(model)
+  
+  cbind(estimate, nobs)
+
+}
+
+################ Input lists + labels ################ 
+outcome_list_supptable5 = 
+  list(fn_score = "fn_score",
+       adl_cat = "adl_cat", 
+       dx_c_num = "dx_c_num")
+
+################ Output ################ 
+
+output_int_supptable5_poisson_CA = 
+  map_dfr(outcome_list_supptable5, supptable5_interaction_poisson_CA, .id = "outcome")
+
+output_int_supptable5_poisson_CA =
+  output_int_supptable5_poisson_CA %>%
+  dplyr::select(outcome, estimate, lowerCI, upperCI, p.value, nobs) %>%
+  mutate(
+    lowerCI = format(round(lowerCI, 2), nsmall = 2),
+    upperCI = format(round(upperCI, 2), nsmall = 2)
+  ) %>%
+  mutate(CI = paste("(",lowerCI,",",upperCI,")", sep = "")) %>%
+  select(outcome, estimate, CI, p.value, nobs) %>%
+  rename(est_int = estimate,
+         ci_int = CI,
+         p_int = p.value)
+
+output_reri_supptable5_poisson_CA = 
+  map_dfr(outcome_list_supptable5, supptable5_reri_poisson_CA, .id = "outcome")
+
+output_reri_supptable5_poisson_CA =
+  output_reri_supptable5_poisson_CA %>%
+  dplyr::select(outcome, est, lower, upper, nobs) %>%
+  mutate(
+    lower = format(round(lower, 2), nsmall = 2),
+    upper = format(round(upper, 2), nsmall = 2)
+  ) %>%
+  mutate(CI = paste("(",lower,",",upper,")", sep = "")) %>%
+  select(outcome, est, CI, nobs) %>%
+  rename(est_reri = est,
+         ci_reri = CI,
+         nobs_reri = nobs)
+```
+
+Analysis of chronological age - linear outcomes
+
+```{r}
+################  Writing function: Mediator-outcome relationship ################ 
+
+supptable5_interaction_linear_CA = function(outcome) {
+  
+  model =
+    glm(pull(BA_subsample_bw, outcome) ~ sex + r13cenreg + scale(age) + raracem + scale(age)*raracem, data = BA_subsample_bw, family = gaussian)
+  
+  estimate =
+    model %>%
+    broom::tidy() %>%
+    filter(term == "scale(age):raracem2.black/african american") %>%
+    mutate(lowerCI = estimate - (1.96*std.error),
+           upperCI = estimate + (1.96*std.error))
+    
+  nobs = 
+    nobs(model)
+  
+  cbind(estimate, nobs)
+  
+}
+
+supptable5_reri_linear_CA = function(outcome) {
+  
+  model =
+    glm(pull(BA_subsample_bw, outcome) ~ sex + r13cenreg + scale(age) + raracem + scale(age)*raracem, data = BA_subsample_bw, family = gaussian)
+
+  estimate = 
+    epi.interaction(model, param = c("product"), coef = c(6, 7, 8),
+    type = "RERI", conf.level = 0.95)
+  
+  nobs = 
+    nobs(model)
+  
+  cbind(estimate, nobs)
+
+}
+
+################ Input lists + labels ################ 
+  
+## Analysis samples
+outcome_list_supptable5_linear = 
+  list(srh = "srh")
+
+################ Output ################ 
+
+output_int_supptable5_linear_CA = 
+  map_dfr(outcome_list_supptable5_linear, supptable5_interaction_linear_CA, .id = "outcome")
+
+output_int_supptable5_linear_CA =
+  output_int_supptable5_linear_CA %>%
+  dplyr::select(outcome, estimate, lowerCI, upperCI, p.value, nobs) %>%
+  mutate(
+    lowerCI = format(round(lowerCI, 2), nsmall = 2),
+    upperCI = format(round(upperCI, 2), nsmall = 2)
+  ) %>%
+  mutate(CI = paste("(",lowerCI,",",upperCI,")", sep = "")) %>%
+  select(outcome, estimate, CI, p.value, nobs) %>%
+  rename(est_int = estimate,
+         ci_int = CI,
+         p_int = p.value)
+
+output_reri_supptable5_linear_CA = 
+  map_dfr(outcome_list_supptable5_linear, supptable5_reri_linear_CA, .id = "outcome")
+
+output_reri_supptable5_linear_CA =
+  output_reri_supptable5_linear_CA %>%
+  dplyr::select(outcome, est, lower, upper, nobs) %>%
+  mutate(
+    lower = format(round(lower, 2), nsmall = 2),
+    upper = format(round(upper, 2), nsmall = 2)
+  ) %>%
+  mutate(CI = paste("(",lower,",",upper,")", sep = "")) %>%
+  select(outcome, est, CI, nobs) %>%
+  rename(est_reri = est,
+         ci_reri = CI,
+         nobs_reri = nobs)
+```
+
+
+## 4) Mediation analysis: Testing biological-age advancement as a mediator of Black-White differences in healthspan characteristics, with and without E-M interactions
+
+No E-M interaction- Poisson
+```{r}
+################  Writing function: Mediator-outcome relationship ################ 
+
+supptable6_mediation_fn = function(sample, BAmeasure) {
+  
+    step1 =
+      cmest(
+        data = sample,
+        model = "rb",
+        full = FALSE,
+        estimation = "paramfunc",
+        inference = "bootstrap",
+        outcome = "fn_score",
+        exposure = "black",
+        mediator = BAmeasure,
+        EMint = FALSE,
+        basec = c("center_age", "sex", "r13cenreg"),
+        mreg = list("linear"),
+        yreg = "poisson",
+        mval = list(0),
+        astar = 0,
+        a = 1,
+        yref = 0,
+        basecval = NULL,
+        nboot = 200,
+        multimp = FALSE,
+      )
+    
+    estimate =
+      step1$effect.pe %>%
+      as.data.frame() %>%
+      janitor::clean_names() %>%
+      rownames_to_column(var = "measure") %>%
+      rename(estimate = x) %>%
+      mutate(estimate = ln(estimate))
+    
+    nobs =
+      c("nobs", nobs(step1$reg.output$yreg))
+    
+    estimate = 
+      rbind(estimate, nobs)
+    
+    lowerCI =
+      step1$effect.ci.low %>%
+      as.data.frame() %>%
+      janitor::clean_names() %>%
+      rownames_to_column(var = "measure") %>%
+      rename(lowerCI = x) %>%
+      mutate(lowerCI = ln(lowerCI))
+
+    lowerCI = 
+      rbind(lowerCI, nobs)
+    
+    upperCI =
+      step1$effect.ci.high %>%
+      as.data.frame() %>%
+      janitor::clean_names() %>%
+      rownames_to_column(var = "measure") %>%
+      rename(upperCI = x) %>%
+      mutate(upperCI = ln(upperCI))
+    
+    upperCI = 
+      rbind(upperCI, nobs)  
+    
+    mediation_results =
+      left_join(estimate, lowerCI)
+    mediation_results =
+      left_join(mediation_results, upperCI)
+    
+    mediation_results
+
+}
+
+supptable6_mediation_adl = function(sample, BAmeasure) {
+  
+    step1 =
+      cmest(
+        data = sample,
+        model = "rb",
+        full = FALSE,
+        estimation = "paramfunc",
+        inference = "bootstrap",
+        outcome = "adl_cat",
+        exposure = "black",
+        mediator = BAmeasure,
+        EMint = FALSE,
+        basec = c("center_age", "sex", "r13cenreg"),
+        mreg = list("linear"),
+        yreg = "poisson",
+        mval = list(0),
+        astar = 0,
+        a = 1,
+        yref = 0,
+        basecval = NULL,
+        nboot = 200,
+        multimp = FALSE,
+      )
+    
+    estimate =
+      step1$effect.pe %>%
+      as.data.frame() %>%
+      janitor::clean_names() %>%
+      rownames_to_column(var = "measure") %>%
+      rename(estimate = x) %>%
+      mutate(estimate = ln(estimate))
+    
+    nobs =
+      c("nobs", nobs(step1$reg.output$yreg))
+    
+    estimate = 
+      rbind(estimate, nobs)
+    
+    lowerCI =
+      step1$effect.ci.low %>%
+      as.data.frame() %>%
+      janitor::clean_names() %>%
+      rownames_to_column(var = "measure") %>%
+      rename(lowerCI = x) %>%
+      mutate(lowerCI = ln(lowerCI))
+
+    lowerCI = 
+      rbind(lowerCI, nobs)
+    
+    upperCI =
+      step1$effect.ci.high %>%
+      as.data.frame() %>%
+      janitor::clean_names() %>%
+      rownames_to_column(var = "measure") %>%
+      rename(upperCI = x) %>%
+      mutate(upperCI = ln(upperCI))
+    
+    upperCI = 
+      rbind(upperCI, nobs)  
+    
+    mediation_results =
+      left_join(estimate, lowerCI)
+    mediation_results =
+      left_join(mediation_results, upperCI)
+    
+    mediation_results
+
+}
+
+supptable6_mediation_dxc = function(sample, BAmeasure) {
+  
+    step1 =
+      cmest(
+        data = sample,
+        model = "rb",
+        full = FALSE,
+        estimation = "paramfunc",
+        inference = "bootstrap",
+        outcome = "dx_c_num",
+        exposure = "black",
+        mediator = BAmeasure,
+        EMint = FALSE,
+        basec = c("center_age", "sex", "r13cenreg"),
+        mreg = list("linear"),
+        yreg = "poisson",
+        mval = list(0),
+        astar = 0,
+        a = 1,
+        yref = 0,
+        basecval = NULL,
+        nboot = 200,
+        multimp = FALSE,
+      )
+    
+    estimate =
+      step1$effect.pe %>%
+      as.data.frame() %>%
+      janitor::clean_names() %>%
+      rownames_to_column(var = "measure") %>%
+      rename(estimate = x) %>%
+      mutate(estimate = ln(estimate))
+    
+    nobs =
+      c("nobs", nobs(step1$reg.output$yreg))
+    
+    estimate = 
+      rbind(estimate, nobs)
+    
+    lowerCI =
+      step1$effect.ci.low %>%
+      as.data.frame() %>%
+      janitor::clean_names() %>%
+      rownames_to_column(var = "measure") %>%
+      rename(lowerCI = x) %>%
+      mutate(lowerCI = ln(lowerCI))
+
+    lowerCI = 
+      rbind(lowerCI, nobs)
+    
+    upperCI =
+      step1$effect.ci.high %>%
+      as.data.frame() %>%
+      janitor::clean_names() %>%
+      rownames_to_column(var = "measure") %>%
+      rename(upperCI = x) %>%
+      mutate(upperCI = ln(upperCI))
+    
+    upperCI = 
+      rbind(upperCI, nobs)  
+    
+    mediation_results =
+      left_join(estimate, lowerCI)
+    mediation_results =
+      left_join(mediation_results, upperCI)
+    
+    mediation_results
+
+}
+
+################ Input lists + labels ################ 
+
+sample_list_supptable6 =
+  list(BA_subsample_bw = BA_subsample_bw, 
+       DNAm_subsample_bw = DNAm_subsample_bw)
+
+BAmeasure_list_supptable6 = 
+  BA_measures_advsd
+
+dataset_supptable6 =
+  list(x = sample_list_supptable6, y = BAmeasure_list_supptable6)
+dataset_supptable6_combo =
+  cross_df(dataset_supptable6) %>%
+  rename(sample = x, BAmeasure = y)
+
+dataset_supptable6_combo_labels =
+  dataset_supptable6_combo %>%
+  mutate(samplename = rep(c("BA_subsample", "DNAm_subsample"), times = 8)) %>%
+  dplyr::select(samplename, BAmeasure) %>%
+  slice(rep(1:n(), each = 7))
+         
+################ Output ################ 
+output_med_primary_supptable6_raw_fn = 
+  pmap_dfr(list(dataset_supptable6_combo$sample, dataset_supptable6_combo$BAmeasure), supptable6_mediation_fn)
+      
+      output_med_primary_supptable6_fn =
+        cbind(dataset_supptable6_combo_labels, output_med_primary_supptable6_raw_fn) %>%
+        filter(
+          (samplename == "BA_subsample" & (BAmeasure %in% c("paa_sd", "kdma_sd", "hdlog_sd"))) | 
+          (samplename == "DNAm_subsample" & (BAmeasure %in% c("levinednamadv_sd", "grimageadv_sd", "poa_sd")))
+        ) %>%
+        mutate(
+          lowerCI = as.numeric(lowerCI),
+          upperCI = as.numeric(upperCI)
+        ) %>%
+        mutate(
+          lowerCI = format(round(lowerCI, 2), nsmall = 2),
+          upperCI = format(round(upperCI, 2), nsmall = 2)
+        ) %>%
+        mutate(CI = paste("(",lowerCI,",",upperCI,")", sep = "")) %>%
+        dplyr::select(-lowerCI, -upperCI)
+
+output_med_primary_supptable6_raw_adl = 
+  pmap_dfr(list(dataset_supptable6_combo$sample, dataset_supptable6_combo$BAmeasure), supptable6_mediation_adl)
+
+      output_med_primary_supptable6_adl =
+        cbind(dataset_supptable6_combo_labels, output_med_primary_supptable6_raw_adl) %>%
+        filter(
+          (samplename == "BA_subsample" & (BAmeasure %in% c("paa_sd", "kdma_sd", "hdlog_sd"))) | 
+          (samplename == "DNAm_subsample" & (BAmeasure %in% c("levinednamadv_sd", "grimageadv_sd", "poa_sd")))
+        ) %>%
+        mutate(
+          lowerCI = as.numeric(lowerCI),
+          upperCI = as.numeric(upperCI)
+        ) %>%
+        mutate(
+          lowerCI = format(round(lowerCI, 2), nsmall = 2),
+          upperCI = format(round(upperCI, 2), nsmall = 2)
+        ) %>%
+        mutate(CI = paste("(",lowerCI,",",upperCI,")", sep = "")) %>%
+        dplyr::select(-lowerCI, -upperCI)
+
+output_med_primary_supptable6_raw_dxc = 
+  pmap_dfr(list(dataset_supptable6_combo$sample, dataset_supptable6_combo$BAmeasure), supptable6_mediation_dxc)
+
+      output_med_primary_supptable6_dxc =
+        cbind(dataset_supptable6_combo_labels, output_med_primary_supptable6_raw_dxc) %>%
+        filter(
+          (samplename == "BA_subsample" & (BAmeasure %in% c("paa_sd", "kdma_sd", "hdlog_sd"))) | 
+          (samplename == "DNAm_subsample" & (BAmeasure %in% c("levinednamadv_sd", "grimageadv_sd", "poa_sd")))
+        ) %>%
+        mutate(
+          lowerCI = as.numeric(lowerCI),
+          upperCI = as.numeric(upperCI)
+        ) %>%
+        mutate(
+          lowerCI = format(round(lowerCI, 2), nsmall = 2),
+          upperCI = format(round(upperCI, 2), nsmall = 2)
+        ) %>%
+        mutate(CI = paste("(",lowerCI,",",upperCI,")", sep = "")) %>%
+        dplyr::select(-lowerCI, -upperCI)
+
+names(output_med_primary_supptable6_fn) <- paste0(names(output_med_primary_supptable6_fn), "_fn")
+names(output_med_primary_supptable6_adl) <- paste0(names(output_med_primary_supptable6_adl), "_adl")
+names(output_med_primary_supptable6_dxc) <- paste0(names(output_med_primary_supptable6_dxc), "_dxc")
+
+output_med_primary_supptable6_fn =
+  output_med_primary_supptable6_fn %>%
+  rename(
+    samplename = samplename_fn,
+    BAmeasure = BAmeasure_fn,
+    measure = measure_fn
+  )
+
+output_med_primary_supptable6_adl =
+  output_med_primary_supptable6_adl %>%
+  rename(
+    samplename = samplename_adl,
+    BAmeasure = BAmeasure_adl,
+    measure = measure_adl
+  )
+
+output_med_primary_supptable6_dxc =
+  output_med_primary_supptable6_dxc %>%
+  rename(
+    samplename = samplename_dxc,
+    BAmeasure = BAmeasure_dxc,
+    measure = measure_dxc
+  )
+
+output_med_primary_supptable6 =
+  left_join(output_med_primary_supptable6_fn, output_med_primary_supptable6_adl)
+output_med_primary_supptable6 =
+  left_join(output_med_primary_supptable6, output_med_primary_supptable6_dxc)
+```
+
+No E-M interaction (linear)
+```{r}
+################  Writing function: Mediator-outcome relationship ################ 
+
+supptable6_mediation_srh = function(sample, BAmeasure) {
+  
+    step1 =
+      cmest(
+        data = sample,
+        model = "rb",
+        full = FALSE,
+        estimation = "paramfunc",
+        inference = "bootstrap",
+        outcome = "srh",
+        exposure = "black",
+        mediator = BAmeasure,
+        EMint = FALSE,
+        basec = c("center_age", "sex", "r13cenreg"),
+        mreg = list("linear"),
+        yreg = "linear",
+        mval = list(0),
+        astar = 0,
+        a = 1,
+        yref = 0,
+        basecval = NULL,
+        nboot = 200,
+        multimp = FALSE,
+      )
+    
+    estimate =
+      step1$effect.pe %>%
+      as.data.frame() %>%
+      janitor::clean_names() %>%
+      rownames_to_column(var = "measure") %>%
+      rename(estimate = x)
+    
+    nobs =
+      c("nobs", nobs(step1$reg.output$yreg))
+    
+    estimate = 
+      rbind(estimate, nobs)
+    
+    lowerCI =
+      step1$effect.ci.low %>%
+      as.data.frame() %>%
+      janitor::clean_names() %>%
+      rownames_to_column(var = "measure") %>%
+      rename(lowerCI = x)
+
+    lowerCI = 
+      rbind(lowerCI, nobs)
+    
+    upperCI =
+      step1$effect.ci.high %>%
+      as.data.frame() %>%
+      janitor::clean_names() %>%
+      rownames_to_column(var = "measure") %>%
+      rename(upperCI = x)
+    
+    upperCI = 
+      rbind(upperCI, nobs)  
+    
+    mediation_results =
+      left_join(estimate, lowerCI)
+    mediation_results =
+      left_join(mediation_results, upperCI)
+    
+    mediation_results
+
+}
+
+################ Input lists + labels ################ 
+
+sample_list_supptable6 =
+  list(BA_subsample_bw = BA_subsample_bw, 
+       DNAm_subsample_bw = DNAm_subsample_bw)
+
+BAmeasure_list_supptable6 = 
+  BA_measures_advsd
+
+dataset_supptable6 =
+  list(x = sample_list_supptable6, y = BAmeasure_list_supptable6)
+dataset_supptable6_combo =
+  cross_df(dataset_supptable6) %>%
+  rename(sample = x, BAmeasure = y)
+
+dataset_supptable6_combo_labels =
+  dataset_supptable6_combo %>%
+  mutate(samplename = rep(c("BA_subsample", "DNAm_subsample"), times = 8)) %>%
+  dplyr::select(samplename, BAmeasure) %>%
+  slice(rep(1:n(), each = 7))
+         
+################ Output ################ 
+
+output_med_primary_supptable6_raw_srh = 
+  pmap_dfr(list(dataset_supptable6_combo$sample, dataset_supptable6_combo$BAmeasure), supptable6_mediation_srh)
+      
+      output_med_primary_supptable6_srh =
+        cbind(dataset_supptable6_combo_labels, output_med_primary_supptable6_raw_srh) %>%
+        filter(
+          (samplename == "BA_subsample" & (BAmeasure %in% c("paa_sd", "kdma_sd", "hdlog_sd"))) | 
+          (samplename == "DNAm_subsample" & (BAmeasure %in% c("levinednamadv_sd", "grimageadv_sd", "poa_sd")))
+        ) %>%
+        mutate(
+          lowerCI = as.numeric(lowerCI),
+          upperCI = as.numeric(upperCI)
+        ) %>%
+        mutate(
+          lowerCI = format(round(lowerCI, 2), nsmall = 2),
+          upperCI = format(round(upperCI, 2), nsmall = 2)
+        ) %>%
+        mutate(CI = paste("(",lowerCI,",",upperCI,")", sep = "")) %>%
+        dplyr::select(-lowerCI, -upperCI)
+
+      
+output_med_primary_supptable6 %>%
+  knitr::kable()
+
+  output_med_primary_supptable6_srh %>%
+  knitr::kable()
+
+```
+
+E-M interaction- Poisson
+```{r}
+################  Writing function: Mediator-outcome relationship ################ 
+supptable6_mediation_fn_int = function(sample, BAmeasure) {
+  
+    step1 =
+      cmest(
+        data = sample,
+        model = "rb",
+        full = FALSE,
+        estimation = "paramfunc",
+        inference = "bootstrap",
+        outcome = "fn_score",
+        exposure = "black",
+        mediator = BAmeasure,
+        EMint = TRUE,
+        basec = c("center_age", "sex", "r13cenreg"),
+        mreg = list("linear"),
+        yreg = "poisson",
+        mval = list(0),
+        astar = 0,
+        a = 1,
+        yref = 0,
+        basecval = NULL,
+        nboot = 200,
+        multimp = FALSE,
+      )
+    
+    estimate =
+      step1$effect.pe %>%
+      as.data.frame() %>%
+      janitor::clean_names() %>%
+      rownames_to_column(var = "measure") %>%
+      rename(estimate = x) %>%
+      mutate(estimate = ln(estimate))
+    
+    nobs =
+      c("nobs", nobs(step1$reg.output$yreg))
+    
+    estimate = 
+      rbind(estimate, nobs)
+    
+    lowerCI =
+      step1$effect.ci.low %>%
+      as.data.frame() %>%
+      janitor::clean_names() %>%
+      rownames_to_column(var = "measure") %>%
+      rename(lowerCI = x) %>%
+      mutate(lowerCI = ln(lowerCI))
+
+    lowerCI = 
+      rbind(lowerCI, nobs)
+    
+    upperCI =
+      step1$effect.ci.high %>%
+      as.data.frame() %>%
+      janitor::clean_names() %>%
+      rownames_to_column(var = "measure") %>%
+      rename(upperCI = x) %>%
+      mutate(upperCI = ln(upperCI))
+    
+    upperCI = 
+      rbind(upperCI, nobs)  
+    
+    mediation_results =
+      left_join(estimate, lowerCI)
+    mediation_results =
+      left_join(mediation_results, upperCI)
+    
+    mediation_results
+
+}
+
+supptable6_mediation_adl_int = function(sample, BAmeasure) {
+  
+    step1 =
+      cmest(
+        data = sample,
+        model = "rb",
+        full = FALSE,
+        estimation = "paramfunc",
+        inference = "bootstrap",
+        outcome = "adl_cat",
+        exposure = "black",
+        mediator = BAmeasure,
+        EMint = TRUE,
+        basec = c("center_age", "sex", "r13cenreg"),
+        mreg = list("linear"),
+        yreg = "poisson",
+        mval = list(0),
+        astar = 0,
+        a = 1,
+        yref = 0,
+        basecval = NULL,
+        nboot = 200,
+        multimp = FALSE,
+      )
+    
+    estimate =
+      step1$effect.pe %>%
+      as.data.frame() %>%
+      janitor::clean_names() %>%
+      rownames_to_column(var = "measure") %>%
+      rename(estimate = x) %>%
+      mutate(estimate = ln(estimate))
+    
+    nobs =
+      c("nobs", nobs(step1$reg.output$yreg))
+    
+    estimate = 
+      rbind(estimate, nobs)
+    
+    lowerCI =
+      step1$effect.ci.low %>%
+      as.data.frame() %>%
+      janitor::clean_names() %>%
+      rownames_to_column(var = "measure") %>%
+      rename(lowerCI = x) %>%
+      mutate(lowerCI = ln(lowerCI))
+
+    lowerCI = 
+      rbind(lowerCI, nobs)
+    
+    upperCI =
+      step1$effect.ci.high %>%
+      as.data.frame() %>%
+      janitor::clean_names() %>%
+      rownames_to_column(var = "measure") %>%
+      rename(upperCI = x) %>%
+      mutate(upperCI = ln(upperCI))
+    
+    upperCI = 
+      rbind(upperCI, nobs)  
+    
+    mediation_results =
+      left_join(estimate, lowerCI)
+    mediation_results =
+      left_join(mediation_results, upperCI)
+    
+    mediation_results
+
+}
+
+
+supptable6_mediation_dxc_int = function(sample, BAmeasure) {
+  
+    step1 =
+      cmest(
+        data = sample,
+        model = "rb",
+        full = FALSE,
+        estimation = "paramfunc",
+        inference = "bootstrap",
+        outcome = "dx_c_num",
+        exposure = "black",
+        mediator = BAmeasure,
+        EMint = TRUE,
+        basec = c("center_age", "sex", "r13cenreg"),
+        mreg = list("linear"),
+        yreg = "poisson",
+        mval = list(0),
+        astar = 0,
+        a = 1,
+        yref = 0,
+        basecval = NULL,
+        nboot = 200,
+        multimp = FALSE,
+      )
+    
+    estimate =
+      step1$effect.pe %>%
+      as.data.frame() %>%
+      janitor::clean_names() %>%
+      rownames_to_column(var = "measure") %>%
+      rename(estimate = x) %>%
+      mutate(estimate = ln(estimate))
+    
+    nobs =
+      c("nobs", nobs(step1$reg.output$yreg))
+    
+    estimate = 
+      rbind(estimate, nobs)
+    
+    lowerCI =
+      step1$effect.ci.low %>%
+      as.data.frame() %>%
+      janitor::clean_names() %>%
+      rownames_to_column(var = "measure") %>%
+      rename(lowerCI = x) %>%
+      mutate(lowerCI = ln(lowerCI))
+
+    lowerCI = 
+      rbind(lowerCI, nobs)
+    
+    upperCI =
+      step1$effect.ci.high %>%
+      as.data.frame() %>%
+      janitor::clean_names() %>%
+      rownames_to_column(var = "measure") %>%
+      rename(upperCI = x) %>%
+      mutate(upperCI = ln(upperCI))
+    
+    upperCI = 
+      rbind(upperCI, nobs)  
+    
+    mediation_results =
+      left_join(estimate, lowerCI)
+    mediation_results =
+      left_join(mediation_results, upperCI)
+    
+    mediation_results
+
+}
+ 
+ 
+################ Input lists + labels ################ 
+
+sample_list_supptable6 =
+  list(BA_subsample_bw = BA_subsample_bw, 
+       DNAm_subsample_bw = DNAm_subsample_bw)
+
+BAmeasure_list_supptable6 = 
+  BA_measures_advsd
+
+dataset_supptable6 =
+  list(x = sample_list_supptable6, y = BAmeasure_list_supptable6)
+dataset_supptable6_combo =
+  cross_df(dataset_supptable6) %>%
+  rename(sample = x, BAmeasure = y)
+
+dataset_supptable6_combo_labels =
+  dataset_supptable6_combo %>%
+  mutate(samplename = rep(c("BA_subsample", "DNAm_subsample"), times = 8)) %>%
+  dplyr::select(samplename, BAmeasure) %>%
+  slice(rep(1:n(), each = 7))
+         
+################ Output ################ 
+output_med_secondary_supptable6_raw_fn = 
+  pmap_dfr(list(dataset_supptable6_combo$sample, dataset_supptable6_combo$BAmeasure), supptable6_mediation_fn_int)
+      
+      output_med_secondary_supptable6_fn =
+        cbind(dataset_supptable6_combo_labels, output_med_secondary_supptable6_raw_fn) %>%
+        filter(
+          (samplename == "BA_subsample" & (BAmeasure %in% c("paa_sd", "kdma_sd", "hdlog_sd"))) | 
+          (samplename == "DNAm_subsample" & (BAmeasure %in% c("levinednamadv_sd", "grimageadv_sd", "poa_sd")))
+        ) %>%
+        mutate(
+          lowerCI = as.numeric(lowerCI),
+          upperCI = as.numeric(upperCI)
+        ) %>%
+        mutate(
+          lowerCI = format(round(lowerCI, 2), nsmall = 2),
+          upperCI = format(round(upperCI, 2), nsmall = 2)
+        ) %>%
+        mutate(CI = paste("(",lowerCI,",",upperCI,")", sep = "")) %>%
+        dplyr::select(-lowerCI, -upperCI)
+
+output_med_secondary_supptable6_raw_adl = 
+  pmap_dfr(list(dataset_supptable6_combo$sample, dataset_supptable6_combo$BAmeasure), supptable6_mediation_adl_int)
+
+      output_med_secondary_supptable6_adl =
+        cbind(dataset_supptable6_combo_labels, output_med_secondary_supptable6_raw_adl) %>%
+        filter(
+          (samplename == "BA_subsample" & (BAmeasure %in% c("paa_sd", "kdma_sd", "hdlog_sd"))) | 
+          (samplename == "DNAm_subsample" & (BAmeasure %in% c("levinednamadv_sd", "grimageadv_sd", "poa_sd")))
+        ) %>%
+        mutate(
+          lowerCI = as.numeric(lowerCI),
+          upperCI = as.numeric(upperCI)
+        ) %>%
+        mutate(
+          lowerCI = format(round(lowerCI, 2), nsmall = 2),
+          upperCI = format(round(upperCI, 2), nsmall = 2)
+        ) %>%
+        mutate(CI = paste("(",lowerCI,",",upperCI,")", sep = "")) %>%
+        dplyr::select(-lowerCI, -upperCI)
+
+output_med_secondary_supptable6_raw_dxc = 
+  pmap_dfr(list(dataset_supptable6_combo$sample, dataset_supptable6_combo$BAmeasure), supptable6_mediation_dxc_int)
+
+      output_med_secondary_supptable6_dxc =
+        cbind(dataset_supptable6_combo_labels, output_med_secondary_supptable6_raw_dxc) %>%
+        filter(
+          (samplename == "BA_subsample" & (BAmeasure %in% c("paa_sd", "kdma_sd", "hdlog_sd"))) | 
+          (samplename == "DNAm_subsample" & (BAmeasure %in% c("levinednamadv_sd", "grimageadv_sd", "poa_sd")))
+        ) %>%
+        mutate(
+          lowerCI = as.numeric(lowerCI),
+          upperCI = as.numeric(upperCI)
+        ) %>%
+        mutate(
+          lowerCI = format(round(lowerCI, 2), nsmall = 2),
+          upperCI = format(round(upperCI, 2), nsmall = 2)
+        ) %>%
+        mutate(CI = paste("(",lowerCI,",",upperCI,")", sep = "")) %>%
+        dplyr::select(-lowerCI, -upperCI)
+
+names(output_med_secondary_supptable6_fn) <- paste0(names(output_med_secondary_supptable6_fn), "_fn")
+names(output_med_secondary_supptable6_adl) <- paste0(names(output_med_secondary_supptable6_adl), "_adl")
+names(output_med_secondary_supptable6_dxc) <- paste0(names(output_med_secondary_supptable6_dxc), "_dxc")
+
+output_med_secondary_supptable6_fn =
+  output_med_secondary_supptable6_fn %>%
+  rename(
+    samplename = samplename_fn,
+    BAmeasure = BAmeasure_fn,
+    measure = measure_fn
+  )
+
+output_med_secondary_supptable6_adl =
+  output_med_secondary_supptable6_adl %>%
+  rename(
+    samplename = samplename_adl,
+    BAmeasure = BAmeasure_adl,
+    measure = measure_adl
+  )
+
+output_med_secondary_supptable6_dxc =
+  output_med_secondary_supptable6_dxc %>%
+  rename(
+    samplename = samplename_dxc,
+    BAmeasure = BAmeasure_dxc,
+    measure = measure_dxc
+  )
+
+output_med_secondary_supptable6 =
+  left_join(output_med_secondary_supptable6_fn, output_med_secondary_supptable6_adl)
+output_med_secondary_supptable6 =
+  left_join(output_med_secondary_supptable6, output_med_secondary_supptable6_dxc)
+
+```
+
+E-M interaction- linear
+```{r}
+################  Writing function: Mediator-outcome relationship ################ 
+
+supptable6_mediation_srh_int = function(sample, BAmeasure) {
+  
+    step1 =
+      cmest(
+        data = sample,
+        model = "rb",
+        full = FALSE,
+        estimation = "paramfunc",
+        inference = "bootstrap",
+        outcome = "srh",
+        exposure = "black",
+        mediator = BAmeasure,
+        EMint = TRUE,
+        basec = c("center_age", "sex", "r13cenreg"),
+        mreg = list("linear"),
+        yreg = "linear",
+        mval = list(0),
+        astar = 0,
+        a = 1,
+        yref = 0,
+        basecval = NULL,
+        nboot = 200,
+        multimp = FALSE,
+      )
+    
+    estimate =
+      step1$effect.pe %>%
+      as.data.frame() %>%
+      janitor::clean_names() %>%
+      rownames_to_column(var = "measure") %>%
+      rename(estimate = x)
+    
+    nobs =
+      c("nobs", nobs(step1$reg.output$yreg))
+    
+    estimate = 
+      rbind(estimate, nobs)
+    
+    lowerCI =
+      step1$effect.ci.low %>%
+      as.data.frame() %>%
+      janitor::clean_names() %>%
+      rownames_to_column(var = "measure") %>%
+      rename(lowerCI = x)
+
+    lowerCI = 
+      rbind(lowerCI, nobs)
+    
+    upperCI =
+      step1$effect.ci.high %>%
+      as.data.frame() %>%
+      janitor::clean_names() %>%
+      rownames_to_column(var = "measure") %>%
+      rename(upperCI = x)
+    
+    upperCI = 
+      rbind(upperCI, nobs)  
+    
+    mediation_results =
+      left_join(estimate, lowerCI)
+    mediation_results =
+      left_join(mediation_results, upperCI)
+    
+    mediation_results
+
+}
+
+################ Input lists + labels ################ 
+
+sample_list_supptable6 =
+  list(BA_subsample_bw = BA_subsample_bw, 
+       DNAm_subsample_bw = DNAm_subsample_bw)
+
+BAmeasure_list_supptable6 = 
+  BA_measures_advsd
+
+dataset_supptable6 =
+  list(x = sample_list_supptable6, y = BAmeasure_list_supptable6)
+dataset_supptable6_combo =
+  cross_df(dataset_supptable6) %>%
+  rename(sample = x, BAmeasure = y)
+
+dataset_supptable6_combo_labels_int =
+  dataset_supptable6_combo %>%
+  mutate(samplename = rep(c("BA_subsample", "DNAm_subsample"), times = 8)) %>%
+  dplyr::select(samplename, BAmeasure) %>%
+  slice(rep(1:n(), each = 7))
+         
+################ Output ################ 
+output_med_primary_supptable6_raw_srh_int = 
+  pmap_dfr(list(dataset_supptable6_combo$sample, dataset_supptable6_combo$BAmeasure), supptable6_mediation_srh_int)
+      
+      output_med_primary_supptable6_srh_int =
+        cbind(dataset_supptable6_combo_labels_int, output_med_primary_supptable6_raw_srh_int) %>%
+        filter(
+          (samplename == "BA_subsample" & (BAmeasure %in% c("paa_sd", "kdma_sd", "hdlog_sd"))) | 
+          (samplename == "DNAm_subsample" & (BAmeasure %in% c("levinednamadv_sd", "grimageadv_sd", "poa_sd")))
+        ) %>%
+        mutate(
+          lowerCI = as.numeric(lowerCI),
+          upperCI = as.numeric(upperCI)
+        ) %>%
+        mutate(
+          lowerCI = format(round(lowerCI, 2), nsmall = 2),
+          upperCI = format(round(upperCI, 2), nsmall = 2)
+        ) %>%
+        mutate(CI = paste("(",lowerCI,",",upperCI,")", sep = "")) %>%
+        dplyr::select(-lowerCI, -upperCI)
+```
+
